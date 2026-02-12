@@ -5,7 +5,6 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
 from langchain_groq import ChatGroq
-from langchain_core.prompts import ChatPromptTemplate
 
 # ------------------ PAGE CONFIG ------------------
 
@@ -17,14 +16,9 @@ st.markdown("""
 
 <style>
 
-.main {
-    background-color: #0e1117;
-}
+.main { background-color: #0e1117; }
 
-.block-container {
-    padding-top: 2rem;
-    max-width: 900px;
-}
+.block-container { padding-top: 2rem; max-width: 900px; }
 
 .chat-message {
     padding: 1rem;
@@ -34,19 +28,9 @@ st.markdown("""
     gap: 12px;
 }
 
-.user {
-    background-color: #1f6feb;
-    color: white;
-}
-
-.bot {
-    background-color: #262730;
-    color: white;
-}
-
-.avatar {
-    font-size: 22px;
-}
+.user { background-color: #1f6feb; color: white; }
+.bot { background-color: #262730; color: white; }
+.avatar { font-size: 22px; }
 
 .stChatInputContainer {
     position: fixed;
@@ -69,10 +53,7 @@ os.environ["GROQ_API_KEY"] = st.secrets["GROQ_API_KEY"]
 with st.sidebar:
 st.title("🏢 HR Assistant")
 st.write("Upload company policy once")
-
-```
 uploaded_file = st.file_uploader("Upload Policy PDF", type="pdf")
-```
 
 # ------------------ SESSION ------------------
 
@@ -82,11 +63,10 @@ st.session_state.messages = []
 # ------------------ LOAD DOC ------------------
 
 if uploaded_file and "vector" not in st.session_state:
+with open("temp.pdf", "wb") as f:
+f.write(uploaded_file.read())
 
 ```
-with open("temp.pdf", "wb") as f:
-    f.write(uploaded_file.read())
-
 loader = PyPDFLoader("temp.pdf")
 docs = loader.load()
 
@@ -107,12 +87,12 @@ role_class = "user" if msg["role"] == "user" else "bot"
 avatar = "🧑" if msg["role"] == "user" else "🤖"
 
 ```
-st.markdown(f"""
+st.markdown(f'''
 <div class="chat-message {role_class}">
     <div class="avatar">{avatar}</div>
     <div>{msg["content"]}</div>
 </div>
-""", unsafe_allow_html=True)
+''', unsafe_allow_html=True)
 ```
 
 # ------------------ CHAT INPUT ------------------
@@ -120,10 +100,9 @@ st.markdown(f"""
 prompt = st.chat_input("Ask HR anything...")
 
 if prompt and "vector" in st.session_state:
-
-```
 st.session_state.messages.append({"role": "user", "content": prompt})
 
+```
 retriever = st.session_state.vector.as_retriever()
 docs = retriever.invoke(prompt)
 context = "\n".join([d.page_content for d in docs])
