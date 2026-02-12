@@ -59,10 +59,45 @@ header {visibility:hidden;}
 }
 </style>
 """, unsafe_allow_html=True)
+/* ===== HERO HEADER ===== */
+
+.hero {
+    text-align: center;
+    padding: 40px 0 10px 0;
+}
+
+.hero-icon {
+    font-size: 55px;
+    margin-bottom: 10px;
+    filter: drop-shadow(0px 6px 18px rgba(0,255,200,0.35));
+}
+
+.hero-title {
+    font-size: 52px;
+    font-weight: 800;
+    background: linear-gradient(90deg, #22d3ee, #34d399, #60a5fa);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+}
+
+.hero-subtitle {
+    font-size: 18px;
+    color: #94a3b8;
+    margin-bottom: 25px;
+}
+
 
 # ================= TITLE =================
-st.markdown('<div class="main-title">🏢 Company Policy Assistant</div>', unsafe_allow_html=True)
-st.caption("Ask anything about company rules & benefits")
+st.markdown("""
+<div class="hero">
+    <div class="hero-icon">🏢</div>
+    <div class="hero-title">Company Policy Assistant</div>
+    <div class="hero-subtitle">Your intelligent workplace knowledge companion</div>
+</div>
+""", unsafe_allow_html=True)
+
 
 # ================= LOAD GROQ KEY =================
 os.environ["GROQ_API_KEY"] = st.secrets["GROQ_API_KEY"]
@@ -153,5 +188,6 @@ if user_input and user_input != st.session_state.last_user_message:
     st.session_state.messages.append({"role": "assistant", "content": response})
 
     st.rerun()
+
 
 
