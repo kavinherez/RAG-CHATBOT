@@ -117,6 +117,15 @@ rag_chain = load_rag()
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
+# --- Fix old stored format ---
+fixed_messages = []
+for m in st.session_state.messages:
+    if isinstance(m, tuple):
+        fixed_messages.append({"role": m[0], "content": m[1]})
+    else:
+        fixed_messages.append(m)
+st.session_state.messages = fixed_messages
+
 # ================= DISPLAY CHAT =================
 for msg in st.session_state.messages:
     if msg["role"] == "user":
@@ -136,3 +145,4 @@ if user_input:
 
     st.session_state.messages.append({"role": "assistant", "content": response})
     st.markdown(f'<div class="bot-bubble">{response}</div>', unsafe_allow_html=True)
+
