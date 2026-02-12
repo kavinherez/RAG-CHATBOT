@@ -6,60 +6,66 @@ from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
 from langchain_groq import ChatGroq
 
-st.set_page_config(page_title="Company AI Assistant", layout="wide")
+st.set_page_config(page_title="Company Policy Assistant", layout="wide")
 
-st.markdown("""
-<style>
-.block-container {max-width: 900px; padding-top: 2rem;}
-.chat-user {background:#1f6feb;padding:12px;border-radius:12px;color:white;margin:8px 0;}
-.chat-bot {background:#262730;padding:12px;border-radius:12px;color:white;margin:8px 0;}
-</style>
-""", unsafe_allow_html=True)
+# Load API key
 
 os.environ["GROQ_API_KEY"] = st.secrets["GROQ_API_KEY"]
 
-st.sidebar.title("🏢 HR Assistant")
-st.sidebar.write("Upload company policy once")
-uploaded_file = st.sidebar.file_uploader("Upload Policy PDF", type="pdf")
+# UI
+
+st.title("🏢 Company Policy Assistant")
+st.caption("Ask anything about company rules & benefits")
+
+# Chat memory
 
 if "messages" not in st.session_state:
-    st.session_state.messages = []
+st.session_state.messages = []
 
-if uploaded_file and "vector" not in st.session_state:
-    with open("temp.pdf", "wb") as f:
-        f.write(uploaded_file.read())
+# ---------------- LOAD VECTOR DB ONCE ----------------
 
-    loader = PyPDFLoader("temp.pdf")
-    docs = loader.load()
+@st.cache_resource
+def load_vector_db():
+loader = PyPDFLoader("manual.pdf")
+docs = loader.load()
 
-    splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=150)
-    chunks = splitter.split_documents(docs)
+```
+splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=150)
+chunks = splitter.split_documents(docs)
 
-    embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-    vector_db = Chroma.from_documents(chunks, embeddings)
+embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+vector_db = Chroma.from_documents(chunks, embeddings)
+return vector_db
+```
 
-    st.session_state.vector = vector_db
-    st.sidebar.success("Policy ready! Ask questions.")
+vector_db = load_vector_db()
+retriever = vector_db.as_retriever()
+
+# Display chat
 
 for msg in st.session_state.messages:
-    if msg["role"] == "user":
-        st.markdown(f"<div class='chat-user'>🧑 {msg['content']}</div>", unsafe_allow_html=True)
-    else:
-        st.markdown(f"<div class='chat-bot'>🤖 {msg['content']}</div>", unsafe_allow_html=True)
+role = "🧑" if msg["role"]=="user" else "🤖"
+st.markdown(f"**{role} {msg['content']}**")
 
-question = st.chat_input("Ask HR anything...")
+# Input
 
-if question and "vector" in st.session_state:
-    st.session_state.messages.append({"role":"user","content":question})
+question = st.chat_input("Ask about company policy...")
 
-    retriever = st.session_state.vector.as_retriever()
-    docs = retriever.invoke(question)
-    context = "\n".join([d.page_content for d in docs])
+if question:
+st.session_state.messages.append({"role":"user","content":question})
 
-    llm = ChatGroq(model_name="llama-3.1-8b-instant")
+```
+docs = retriever.invoke(question)
+context = "\n".join([d.page_content for d in docs])
 
-    prompt = f"""
-You are an HR assistant. Answer ONLY from company policy.
+llm = ChatGroq(model_name="llama-3.1-8b-instant")
+
+prompt = f"""
+```
+
+You are a company HR assistant.
+Answer ONLY from the policy below.
+If not found say: Not mentioned in policy.
 
 Policy:
 {context}
@@ -68,7 +74,9 @@ Question:
 {question}
 """
 
-    answer = llm.invoke(prompt).content
+```
+answer = llm.invoke(prompt).content
 
-    st.session_state.messages.append({"role":"assistant","content":answer})
-    st.rerun()
+st.session_state.messages.append({"role":"assistant","content":answer})
+st.rerun()
+```
