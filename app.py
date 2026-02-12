@@ -136,13 +136,22 @@ for msg in st.session_state.messages:
 # ================= INPUT BOX =================
 user_input = st.chat_input("Type a message")
 
-if user_input:
+# Initialize last processed message
+if "last_user_message" not in st.session_state:
+    st.session_state.last_user_message = None
+
+# Only respond if NEW message
+if user_input and user_input != st.session_state.last_user_message:
+
+    st.session_state.last_user_message = user_input
+
     st.session_state.messages.append({"role": "user", "content": user_input})
-    st.markdown(f'<div class="user-bubble">{user_input}</div>', unsafe_allow_html=True)
 
     with st.spinner("Thinking..."):
         response = rag_chain.invoke(user_input)
 
     st.session_state.messages.append({"role": "assistant", "content": response})
-    st.markdown(f'<div class="bot-bubble">{response}</div>', unsafe_allow_html=True)
+
+    st.rerun()
+
 
