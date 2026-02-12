@@ -163,24 +163,83 @@ for m in st.session_state.messages:
 
 # ================= CUSTOM INPUT =================
 # ===== CHAT INPUT FORM (FIXED VERSION) =====
-with st.form("chat_form", clear_on_submit=True):
+# ================= PREMIUM CHAT INPUT =================
+st.markdown("""
+<style>
+.chat-input-container{
+    position: fixed;
+    bottom: 18px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(900px, 92%);
+    background: rgba(10,18,40,0.65);
+    backdrop-filter: blur(18px);
+    border-radius: 22px;
+    padding: 12px;
+    border: 1px solid rgba(255,255,255,0.08);
+    box-shadow: 0 8px 40px rgba(0,0,0,.45);
+}
 
+.chat-input textarea{
+    background: transparent !important;
+    color: white !important;
+    border: none !important;
+    font-size: 16px !important;
+}
+
+.chat-input textarea:focus{
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+.send-btn{
+    position:absolute;
+    right:22px;
+    bottom:22px;
+    background: linear-gradient(135deg,#18d4c3,#1da1f2);
+    border-radius: 50%;
+    width:48px;
+    height:48px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:20px;
+    color:white;
+    border:none;
+}
+</style>
+""", unsafe_allow_html=True)
+
+st.markdown('<div class="chat-input-container">', unsafe_allow_html=True)
+
+col1, col2 = st.columns([12,1])
+
+with col1:
     user_input = st.text_area(
         "",
+        key="live_input",
         placeholder="Message Company Policy Assistant...",
         label_visibility="collapsed",
-        key="input",
-        height=40
+        height=55
     )
 
-    send = st.form_submit_button("⬆")
+with col2:
+    send_clicked = st.button("➤", use_container_width=True)
 
-if send and user_input.strip():
-    st.session_state.messages.append({"role":"user","content":user_input})
+st.markdown('</div>', unsafe_allow_html=True)
 
-    with st.spinner("Thinking..."):
-        reply = rag.invoke(user_input)
+# ===== SEND LOGIC =====
+if (send_clicked or (user_input and user_input.endswith("\n"))):
 
-    st.session_state.messages.append({"role":"assistant","content":reply})
-    st.rerun()
+    clean_input = user_input.strip()
 
+    if clean_input != "":
+        st.session_state.messages.append({"role":"user","content":clean_input})
+
+        with st.spinner("Thinking..."):
+            reply = rag.invoke(clean_input)
+
+        st.session_state.messages.append({"role":"assistant","content":reply})
+
+        st.session_state.live_input = ""
+        st.rerun()
