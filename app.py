@@ -1,85 +1,147 @@
 import streamlit as st
 import os
-
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import StrOutputParser
 
-# Load API key
+# ------------------ PAGE CONFIG ------------------
+
+st.set_page_config(page_title="Company AI Assistant", layout="wide")
+
+# ------------------ CUSTOM CSS ------------------
+
+st.markdown("""
+
+<style>
+
+.main {
+    background-color: #0e1117;
+}
+
+.block-container {
+    padding-top: 2rem;
+    max-width: 900px;
+}
+
+.chat-message {
+    padding: 1rem;
+    border-radius: 14px;
+    margin-bottom: 10px;
+    display: flex;
+    gap: 12px;
+}
+
+.user {
+    background-color: #1f6feb;
+    color: white;
+}
+
+.bot {
+    background-color: #262730;
+    color: white;
+}
+
+.avatar {
+    font-size: 22px;
+}
+
+.stChatInputContainer {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 900px;
+}
+
+</style>
+
+""", unsafe_allow_html=True)
+
+# ------------------ LOAD KEY ------------------
+
 os.environ["GROQ_API_KEY"] = st.secrets["GROQ_API_KEY"]
 
-st.set_page_config(page_title="Company Policy Assistant", layout="wide")
-st.title("🏢 Company Policy Assistant")
+# ------------------ SIDEBAR ------------------
 
-# Session memory
+with st.sidebar:
+st.title("🏢 HR Assistant")
+st.write("Upload company policy once")
+
+```
+uploaded_file = st.file_uploader("Upload Policy PDF", type="pdf")
+```
+
+# ------------------ SESSION ------------------
+
 if "messages" not in st.session_state:
-    st.session_state.messages = []
+st.session_state.messages = []
 
-uploaded_file = st.file_uploader("Upload Company Policy PDF", type="pdf")
+# ------------------ LOAD DOC ------------------
 
-if uploaded_file:
+if uploaded_file and "vector" not in st.session_state:
 
-    with open("temp.pdf", "wb") as f:
-        f.write(uploaded_file.read())
+```
+with open("temp.pdf", "wb") as f:
+    f.write(uploaded_file.read())
 
-    loader = PyPDFLoader("temp.pdf")
-    documents = loader.load()
+loader = PyPDFLoader("temp.pdf")
+docs = loader.load()
 
-    splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=150)
-    chunks = splitter.split_documents(documents)
+splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=150)
+chunks = splitter.split_documents(docs)
 
-    embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-    vector_db = Chroma.from_documents(chunks, embeddings)
-    retriever = vector_db.as_retriever()
+embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+vector_db = Chroma.from_documents(chunks, embeddings)
 
-    llm = ChatGroq(model_name="llama-3.1-8b-instant")
+st.session_state.vector = vector_db
+st.success("Policy ready! You can ask questions.")
+```
 
-    prompt = ChatPromptTemplate.from_template("""
-    You are an HR assistant answering employee questions.
+# ------------------ CHAT DISPLAY ------------------
 
-    Use ONLY the policy context.
-    If not found say: "Not available in policy document."
+for msg in st.session_state.messages:
+role_class = "user" if msg["role"] == "user" else "bot"
+avatar = "🧑" if msg["role"] == "user" else "🤖"
 
-    Context:
-    {context}
+```
+st.markdown(f"""
+<div class="chat-message {role_class}">
+    <div class="avatar">{avatar}</div>
+    <div>{msg["content"]}</div>
+</div>
+""", unsafe_allow_html=True)
+```
 
-    Conversation:
-    {history}
+# ------------------ CHAT INPUT ------------------
 
-    Question:
-    {question}
-    """)
+prompt = st.chat_input("Ask HR anything...")
 
-    def format_docs(docs):
-        return "\n\n".join(doc.page_content for doc in docs)
+if prompt and "vector" in st.session_state:
 
-    # Display chat history
-    for msg in st.session_state.messages:
-        with st.chat_message(msg["role"]):
-            st.markdown(msg["content"])
+```
+st.session_state.messages.append({"role": "user", "content": prompt})
 
-    user_question = st.chat_input("Ask about company policy")
+retriever = st.session_state.vector.as_retriever()
+docs = retriever.invoke(prompt)
+context = "\n".join([d.page_content for d in docs])
 
-    if user_question:
-        st.session_state.messages.append({"role": "user", "content": user_question})
+llm = ChatGroq(model_name="llama-3.1-8b-instant")
 
-        history_text = "\n".join([m["content"] for m in st.session_state.messages])
+template = f"""
+You are a helpful HR assistant.
+Answer only using company policy.
 
-        context = format_docs(retriever.invoke(user_question))
+Policy:
+{context}
 
-        final_prompt = prompt.invoke({
-            "context": context,
-            "history": history_text,
-            "question": user_question
-        })
+Question: {prompt}
+"""
 
-        response = llm.invoke(final_prompt).content
+response = llm.invoke(template).content
 
-        st.session_state.messages.append({"role": "assistant", "content": response})
-
-        with st.chat_message("assistant"):
-            st.markdown(response)
+st.session_state.messages.append({"role": "assistant", "content": response})
+st.rerun()
+```
