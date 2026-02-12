@@ -162,19 +162,25 @@ for m in st.session_state.messages:
         st.markdown(f'<div class="bot">{m["content"]}</div>', unsafe_allow_html=True)
 
 # ================= CUSTOM INPUT =================
-user_input = st.text_area("", key="input", label_visibility="collapsed")
+# ===== CHAT INPUT FORM (FIXED VERSION) =====
+with st.form("chat_form", clear_on_submit=True):
 
-send = st.button("⬆", key="send")
+    user_input = st.text_area(
+        "",
+        placeholder="Message Company Policy Assistant...",
+        label_visibility="collapsed",
+        key="input",
+        height=40
+    )
 
-st.markdown('<div class="chatbox"></div>', unsafe_allow_html=True)
+    send = st.form_submit_button("⬆")
 
-# ================= SEND LOGIC =================
-if send and user_input.strip()!="":
+if send and user_input.strip():
     st.session_state.messages.append({"role":"user","content":user_input})
 
     with st.spinner("Thinking..."):
         reply = rag.invoke(user_input)
 
     st.session_state.messages.append({"role":"assistant","content":reply})
-    st.session_state.input=""
     st.rerun()
+
