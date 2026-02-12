@@ -80,19 +80,24 @@ def load_rag():
     llm = ChatGroq(model_name="llama-3.1-8b-instant")
 
     prompt = ChatPromptTemplate.from_template("""
-You are a professional HR assistant chatbot.
+You are an HR Company Policy Assistant.
 
-Rules:
-1) If the user greets or talks casually, reply politely like a human assistant.
-2) If the question is about company policy, answer ONLY from the provided context.
-3) If answer not found, say: "This is not mentioned in the company policy document."
+STRICT RULES:
+1) Only answer using the company policy context
+2) If greeting → respond politely
+3) If question unrelated to company policy → say you only handle policy questions
+4) If answer not in context → say "This is not mentioned in the company policy"
+5) Never invent answers
 
-Context:
+-----------------------
+COMPANY POLICY:
 {context}
+-----------------------
 
-Question:
+Employee Question:
 {question}
 """)
+
 
     def format_docs(docs):
         return "\n\n".join(doc.page_content for doc in docs)
@@ -152,3 +157,4 @@ if user_input:
     st.session_state.messages.append(("bot", response, now))
 
     st.rerun()
+
