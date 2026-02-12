@@ -1,8 +1,5 @@
-import streamlit as st
 import os
-from datetime import datetime
-
-# LangChain / RAG
+import streamlit as st
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.embeddings import HuggingFaceEmbeddings
@@ -11,71 +8,77 @@ from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
-# ================= PAGE =================
+# ================= PAGE CONFIG =================
 st.set_page_config(page_title="Company Policy Assistant", layout="wide")
 
-# ================= LOAD SECRET =================
-GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
-os.environ["GROQ_API_KEY"] = GROQ_API_KEY
-
-# ================= STYLE (WHATSAPP UI) =================
+# ================= HIDE STREAMLIT DEFAULT UI =================
 st.markdown("""
 <style>
+#MainMenu {visibility:hidden;}
+footer {visibility:hidden;}
+header {visibility:hidden;}
+[data-testid="stToolbar"] {display:none;}
+[data-testid="stDecoration"] {display:none;}
+[data-testid="stStatusWidget"] {display:none;}
+
 .stApp {
-    background-image: url("whatsappback.png");
-    background-size: cover;
-}
-
-.chat-container {
-    max-width: 900px;
-    margin: auto;
-}
-
-.user-msg {
-    background: #075E54;
+    background: linear-gradient(135deg, #0f172a, #020617);
     color: white;
-    padding: 12px 16px;
-    border-radius: 15px 15px 0px 15px;
+}
+
+.main-title {
+    font-size: 42px;
+    font-weight: 700;
+    padding: 10px 0 20px 0;
+}
+
+.user-bubble {
+    background: #075e54;
+    padding: 12px 18px;
+    border-radius: 18px;
     margin: 8px 0;
     width: fit-content;
+    max-width: 70%;
     margin-left: auto;
 }
 
-.bot-msg {
-    background: #1f2c34;
-    color: white;
-    padding: 12px 16px;
-    border-radius: 15px 15px 15px 0px;
+.bot-bubble {
+    background: #1f2937;
+    padding: 12px 18px;
+    border-radius: 18px;
     margin: 8px 0;
     width: fit-content;
+    max-width: 70%;
 }
 
-.timestamp {
-    font-size: 10px;
-    opacity: 0.6;
-    text-align: right;
+.stTextInput input {
+    background-color: #0f172a !important;
+    color: white !important;
+    border-radius: 12px !important;
+    border: 1px solid #334155 !important;
 }
 </style>
 """, unsafe_allow_html=True)
 
-st.title("🏢 Company Policy Assistant")
-st.caption("Ask anything about HR rules, benefits & policies")
+# ================= TITLE =================
+st.markdown('<div class="main-title">🏢 Company Policy Assistant</div>', unsafe_allow_html=True)
+st.caption("Ask anything about company rules & benefits")
 
-# ================= LOAD RAG ONLY ONCE =================
+# ================= LOAD GROQ KEY =================
+os.environ["GROQ_API_KEY"] = st.secrets["GROQ_API_KEY"]
+
+# ================= LOAD PDF ONLY ONCE =================
 @st.cache_resource
 def load_rag():
-
-    loader = PyPDFLoader("manual.pdf")
-    documents = loader.load()
+    loader = PyPDFLoader("manual.pdf")  # keep pdf in repo root
+    docs = loader.load()
 
     splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=150)
-    chunks = splitter.split_documents(documents)
+    chunks = splitter.split_documents(docs)
 
-    embedding = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-
-    vector_db = Chroma.from_documents(chunks, embedding)
-
-    retriever = vector_db.as_retriever(search_kwargs={"k": 4})
+    embedding_model = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+    vector_db = Chroma.from_documents(chunks, embedding_model)
+    retriever = vector_db.as_retriever()
 
     llm = ChatGroq(model_name="llama-3.1-8b-instant")
 
@@ -83,24 +86,21 @@ def load_rag():
 You are an HR Company Policy Assistant.
 
 STRICT RULES:
-1) Only answer using the company policy context
-2) If greeting → respond politely
-3) If question unrelated to company policy → say you only handle policy questions
-4) If answer not in context → say "This is not mentioned in the company policy"
+1) If greeting → respond politely
+2) If unrelated to company policy → say you only answer policy questions
+3) If policy question → answer ONLY using the context
+4) If not found → say "This is not mentioned in the company policy"
 5) Never invent answers
 
------------------------
-COMPANY POLICY:
+Context:
 {context}
------------------------
 
-Employee Question:
+Question:
 {question}
 """)
 
-
     def format_docs(docs):
-        return "\n\n".join(doc.page_content for doc in docs)
+        return "\\n\\n".join(doc.page_content for doc in docs)
 
     rag_chain = (
         {"context": retriever | format_docs, "question": lambda x: x}
@@ -113,48 +113,26 @@ Employee Question:
 
 rag_chain = load_rag()
 
-# ================= SESSION STATE =================
+# ================= SESSION CHAT =================
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# ================= CHAT DISPLAY =================
-st.markdown('<div class="chat-container">', unsafe_allow_html=True)
-
-for role, msg, time in st.session_state.messages:
-
-    if role == "user":
-        st.markdown(f"""
-        <div class="user-msg">
-            {msg}
-            <div class="timestamp">{time}</div>
-        </div>
-        """, unsafe_allow_html=True)
-
+# ================= DISPLAY CHAT =================
+for msg in st.session_state.messages:
+    if msg["role"] == "user":
+        st.markdown(f'<div class="user-bubble">{msg["content"]}</div>', unsafe_allow_html=True)
     else:
-        st.markdown(f"""
-        <div class="bot-msg">
-            {msg}
-            <div class="timestamp">{time}</div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(f'<div class="bot-bubble">{msg["content"]}</div>', unsafe_allow_html=True)
 
-st.markdown("</div>", unsafe_allow_html=True)
-
-# ================= INPUT =================
+# ================= INPUT BOX =================
 user_input = st.chat_input("Type a message")
 
 if user_input:
+    st.session_state.messages.append({"role": "user", "content": user_input})
+    st.markdown(f'<div class="user-bubble">{user_input}</div>', unsafe_allow_html=True)
 
-    now = datetime.now().strftime("%H:%M")
+    with st.spinner("Thinking..."):
+        response = rag_chain.invoke(user_input)
 
-    # Save user message
-    st.session_state.messages.append(("user", user_input, now))
-
-    # Get response
-    response = rag_chain.invoke(user_input)
-
-    # Save bot message
-    st.session_state.messages.append(("bot", response, now))
-
-    st.rerun()
-
+    st.session_state.messages.append({"role": "assistant", "content": response})
+    st.markdown(f'<div class="bot-bubble">{response}</div>', unsafe_allow_html=True)
