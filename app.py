@@ -1,129 +1,142 @@
-import streamlit as st
 import os
-from datetime import datetime
+import time
+import base64
+import streamlit as st
+
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
 from langchain_groq import ChatGroq
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser
 
 # ---------------- PAGE ----------------
-st.set_page_config(page_title="HR WhatsApp Assistant", layout="wide")
+st.set_page_config(page_title="Company Policy Assistant", page_icon="🏢", layout="wide")
 
-# ---------------- WHATSAPP STYLE ----------------
-st.markdown("""
+# ---------------- BACKGROUND IMAGE ----------------
+def get_base64(file):
+    with open(file, "rb") as f:
+        return base64.b64encode(f.read()).decode()
+
+bg = get_base64("whatsappback.png")
+
+st.markdown(f"""
 <style>
-[data-testid="stAppViewContainer"] {
-    background-image: url("https://i.imgur.com/3ZQ3Z6R.png");
+[data-testid="stAppViewContainer"] {{
+    background-image: url("data:image/png;base64,{bg}");
     background-size: cover;
-}
+}}
 
-.header {
-    background:#202c33;
-    padding:14px;
-    color:white;
-    font-size:20px;
-    border-bottom:1px solid #2a3942;
-    position:sticky;
-    top:0;
-}
+.block-container {{
+    padding-top: 1rem;
+}}
 
-.user {
-    background:#005c4b;
-    color:white;
-    padding:10px 14px;
-    border-radius:12px 12px 0px 12px;
-    margin:6px 0;
-    max-width:60%;
-    margin-left:auto;
-    width:fit-content;
-}
+.chat-bubble-user {{
+    background: #005c4b;
+    color: white;
+    padding: 12px 18px;
+    border-radius: 15px 15px 3px 15px;
+    margin: 8px 0;
+    max-width: 70%;
+    margin-left: auto;
+}}
 
-.bot {
-    background:#202c33;
-    color:white;
-    padding:10px 14px;
-    border-radius:12px 12px 12px 0px;
-    margin:6px 0;
-    max-width:60%;
-    width:fit-content;
-}
+.chat-bubble-bot {{
+    background: #202c33;
+    color: white;
+    padding: 12px 18px;
+    border-radius: 15px 15px 15px 3px;
+    margin: 8px 0;
+    max-width: 70%;
+}}
 
-.time {
-    font-size:10px;
-    opacity:0.6;
-    text-align:right;
-}
-
-.tick {
-    font-size:11px;
-    opacity:0.6;
-    float:right;
-    margin-left:6px;
-}
+.typing {{
+    color: #aaa;
+    font-style: italic;
+}}
 </style>
 """, unsafe_allow_html=True)
 
-# ---------------- API KEY ----------------
+# ---------------- HEADER ----------------
+st.title("🏢 Company Policy Assistant")
+st.caption("Ask anything about company rules & benefits")
+
+# ---------------- LOAD SECRET ----------------
 os.environ["GROQ_API_KEY"] = st.secrets["GROQ_API_KEY"]
 
-# ---------------- HEADER ----------------
-st.markdown("<div class='header'>🟢 HR Helpdesk (online)</div>", unsafe_allow_html=True)
-
-# ---------------- MEMORY ----------------
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-
-# ---------------- LOAD VECTOR DB ----------------
+# ---------------- LOAD & CACHE RAG ----------------
 @st.cache_resource
-def load_vector():
+def load_rag():
+
     loader = PyPDFLoader("manual.pdf")
-    docs = loader.load()
+    documents = loader.load()
 
     splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=150)
-    chunks = splitter.split_documents(docs)
+    chunks = splitter.split_documents(documents)
 
-    embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-    db = Chroma.from_documents(chunks, embeddings)
+    embedding_model = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+    vector_db = Chroma.from_documents(chunks, embedding_model)
 
-    return db
+    retriever = vector_db.as_retriever()
 
-retriever = load_vector().as_retriever()
+    llm = ChatGroq(model_name="llama-3.1-8b-instant")
 
-# ---------------- DISPLAY CHAT ----------------
-for msg in st.session_state.messages:
-    time = datetime.now().strftime("%H:%M")
+    prompt = ChatPromptTemplate.from_template("""
+Answer ONLY from the provided company policy.
+If answer not found, say: "Not mentioned in company policy."
 
-    if msg["role"] == "user":
-        st.markdown(f"<div class='user'>{msg['content']}<div class='time'>{time}<span class='tick'>✔✔</span></div></div>", unsafe_allow_html=True)
-    else:
-        st.markdown(f"<div class='bot'>{msg['content']}<div class='time'>{time}</div></div>", unsafe_allow_html=True)
-
-# ---------------- INPUT ----------------
-question = st.chat_input("Type a message")
-
-if question:
-    st.session_state.messages.append({"role":"user","content":question})
-
-    with st.spinner("HR typing..."):
-        docs = retriever.invoke(question)
-        context = "\n".join([d.page_content for d in docs])
-
-        llm = ChatGroq(model_name="llama-3.1-8b-instant")
-
-        prompt = f"""
-You are an HR assistant.
-Answer ONLY using the company policy below.
-If not found, say: Not mentioned in policy.
-
-Policy:
+Context:
 {context}
 
 Question:
 {question}
-"""
+""")
 
-        answer = llm.invoke(prompt).content
+    def format_docs(docs):
+        return "\n\n".join(doc.page_content for doc in docs)
 
-    st.session_state.messages.append({"role":"assistant","content":answer})
-    st.rerun()
+    rag_chain = (
+        {"context": retriever | format_docs, "question": lambda x: x}
+        | prompt
+        | llm
+        | StrOutputParser()
+    )
+
+    return rag_chain
+
+rag_chain = load_rag()
+
+# ---------------- SESSION STATE ----------------
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+# ---------------- DISPLAY CHAT ----------------
+for role, msg in st.session_state.messages:
+    if role == "user":
+        st.markdown(f"<div class='chat-bubble-user'>{msg}</div>", unsafe_allow_html=True)
+    else:
+        st.markdown(f"<div class='chat-bubble-bot'>{msg}</div>", unsafe_allow_html=True)
+
+# ---------------- INPUT BOX ----------------
+user_input = st.chat_input("Type a message")
+
+if user_input:
+
+    # store user msg
+    st.session_state.messages.append(("user", user_input))
+    st.markdown(f"<div class='chat-bubble-user'>{user_input}</div>", unsafe_allow_html=True)
+
+    # typing animation
+    typing_placeholder = st.empty()
+    typing_placeholder.markdown("<div class='typing'>Assistant is typing...</div>", unsafe_allow_html=True)
+
+    # get response
+    answer = rag_chain.invoke(user_input)
+
+    time.sleep(0.7)
+    typing_placeholder.empty()
+
+    # store bot msg
+    st.session_state.messages.append(("bot", answer))
+    st.markdown(f"<div class='chat-bubble-bot'>{answer}</div>", unsafe_allow_html=True)
