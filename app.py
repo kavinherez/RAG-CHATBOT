@@ -6,61 +6,36 @@ from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
 from langchain_groq import ChatGroq
 
-# ------------------ PAGE CONFIG ------------------
-
 st.set_page_config(page_title="Company AI Assistant", layout="wide")
 
-# ------------------ CUSTOM CSS ------------------
+# ---------------- STYLE ----------------
 
 st.markdown("""
 
 <style>
-
-.main { background-color: #0e1117; }
-
-.block-container { padding-top: 2rem; max-width: 900px; }
-
-.chat-message {
-    padding: 1rem;
-    border-radius: 14px;
-    margin-bottom: 10px;
-    display: flex;
-    gap: 12px;
-}
-
-.user { background-color: #1f6feb; color: white; }
-.bot { background-color: #262730; color: white; }
-.avatar { font-size: 22px; }
-
-.stChatInputContainer {
-    position: fixed;
-    bottom: 20px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 900px;
-}
-
+.block-container {max-width: 900px; padding-top: 2rem;}
+.chat-user {background:#1f6feb;padding:12px;border-radius:12px;color:white;margin:8px 0;}
+.chat-bot {background:#262730;padding:12px;border-radius:12px;color:white;margin:8px 0;}
 </style>
 
 """, unsafe_allow_html=True)
 
-# ------------------ LOAD KEY ------------------
+# ---------------- API KEY ----------------
 
 os.environ["GROQ_API_KEY"] = st.secrets["GROQ_API_KEY"]
 
-# ------------------ SIDEBAR ------------------
+# ---------------- SIDEBAR ----------------
 
-with st.sidebar:
-st.title("🏢 HR Assistant")
-st.write("Upload company policy once")
-uploaded_file = st.file_uploader("Upload Policy PDF", type="pdf")
+st.sidebar.title("🏢 HR Assistant")
+st.sidebar.write("Upload company policy once")
+uploaded_file = st.sidebar.file_uploader("Upload Policy PDF", type="pdf")
 
-# ------------------ SESSION ------------------
+# ---------------- SESSION ----------------
 
 if "messages" not in st.session_state:
 st.session_state.messages = []
 
-# ------------------ LOAD DOC ------------------
+# ---------------- LOAD DOCUMENT ----------------
 
 if uploaded_file and "vector" not in st.session_state:
 with open("temp.pdf", "wb") as f:
@@ -77,50 +52,46 @@ embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-
 vector_db = Chroma.from_documents(chunks, embeddings)
 
 st.session_state.vector = vector_db
-st.success("Policy ready! You can ask questions.")
+st.sidebar.success("Policy ready! Ask questions.")
 ```
 
-# ------------------ CHAT DISPLAY ------------------
+# ---------------- CHAT DISPLAY ----------------
 
 for msg in st.session_state.messages:
-role_class = "user" if msg["role"] == "user" else "bot"
-avatar = "🧑" if msg["role"] == "user" else "🤖"
+if msg["role"] == "user":
+st.markdown(f"<div class='chat-user'>🧑 {msg['content']}</div>", unsafe_allow_html=True)
+else:
+st.markdown(f"<div class='chat-bot'>🤖 {msg['content']}</div>", unsafe_allow_html=True)
 
-```
-st.markdown(f'''
-<div class="chat-message {role_class}">
-    <div class="avatar">{avatar}</div>
-    <div>{msg["content"]}</div>
-</div>
-''', unsafe_allow_html=True)
-```
+# ---------------- CHAT INPUT ----------------
 
-# ------------------ CHAT INPUT ------------------
+question = st.chat_input("Ask HR anything...")
 
-prompt = st.chat_input("Ask HR anything...")
-
-if prompt and "vector" in st.session_state:
-st.session_state.messages.append({"role": "user", "content": prompt})
+if question and "vector" in st.session_state:
+st.session_state.messages.append({"role":"user","content":question})
 
 ```
 retriever = st.session_state.vector.as_retriever()
-docs = retriever.invoke(prompt)
+docs = retriever.invoke(question)
 context = "\n".join([d.page_content for d in docs])
 
 llm = ChatGroq(model_name="llama-3.1-8b-instant")
 
-template = f"""
-You are a helpful HR assistant.
-Answer only using company policy.
+prompt = f"""
+```
+
+You are an HR assistant. Answer ONLY from company policy.
 
 Policy:
 {context}
 
-Question: {prompt}
+Question:
+{question}
 """
 
-response = llm.invoke(template).content
+```
+answer = llm.invoke(prompt).content
 
-st.session_state.messages.append({"role": "assistant", "content": response})
+st.session_state.messages.append({"role":"assistant","content":answer})
 st.rerun()
 ```
