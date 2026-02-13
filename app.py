@@ -116,12 +116,38 @@ def is_greeting(q):
     return q.lower().strip() in ["hi","hello","hey","good morning","good afternoon","good evening"]
 
 # ================= GROQ RAG ANSWER =================
+def normalize_question(q: str):
+    q = q.lower()
+
+    replacements = {
+        "gone": "leave",
+        "away": "leave",
+        "absent": "leave",
+        "not coming": "leave",
+        "off work": "leave",
+        "time off": "leave",
+        "break": "leave",
+        "months": "long leave",
+        "weeks": "leave",
+        "personal reasons": "leave",
+        "travel": "vacation",
+        "holiday": "vacation",
+    }
+
+    for k, v in replacements.items():
+        if k in q:
+            q += " " + v
+
+    return q
+
 def generate_ai_answer(question):
 
     if is_greeting(question):
         return None, "Hello 👋 I can help you understand company HR policies like leave, benefits and approvals."
 
-    q_embedding = model.encode([question])
+       normalized_q = normalize_question(question)
+       q_embedding = model.encode([normalized_q])
+
     scores = cosine_similarity(q_embedding, policy_embeddings)[0]
 
     top_indices = np.argsort(scores)[-2:][::-1]
@@ -239,5 +265,6 @@ if st.session_state.thinking:
     st.session_state.messages.append({"role":"assistant","content":full_answer})
     st.session_state.thinking = False
     st.rerun()
+
 
 
