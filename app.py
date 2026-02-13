@@ -73,10 +73,17 @@ html, body, [class*="css"]  {
 
 /* Input box */
 .stChatInput textarea {
-    background:#1a1a1a !important;
-    border:1px solid #2f2f2f !important;
-    color:white !important;
+    background:#202123 !important;     /* ChatGPT graphite */
+    border:1px solid #3a3b3c !important;
+    color:#ffffff !important;
     border-radius:14px !important;
+    padding:14px !important;
+}
+
+/* Focus glow */
+.stChatInput textarea:focus {
+    border:1px solid #10a37f !important;
+    box-shadow:0 0 0 1px #10a37f55;
 }
 
 </style>
@@ -161,3 +168,4 @@ if query:
     st.rerun()
 
 st.markdown('</div>', unsafe_allow_html=True)
+
