@@ -91,14 +91,31 @@ policy_embeddings = embed()
 # ================= NORMALIZE QUERY =================
 def normalize(q):
     q=q.lower()
-    synonyms={
-        "gone":"leave","away":"leave","absent":"leave",
-        "months":"long leave","weeks":"leave",
-        "travel":"vacation","break":"leave","personal":"leave"
+
+    intent_map = {
+        "long leave": "extended leave",
+        "long vacation": "extended leave",
+        "months leave": "extended leave",
+        "few months": "extended leave",
+        "3 months": "extended leave",
+        "two months": "extended leave",
+        "1 month": "extended leave",
+        "personal leave": "extended leave",
+        "personal reasons": "extended leave",
+        "not coming to work": "extended leave",
+        "gone for": "extended leave",
+        "away for": "extended leave",
+        "leave for months": "extended leave",
+        "break from work": "extended leave",
+        "taking time off": "leave",
     }
-    for k,v in synonyms.items():
-        if k in q: q+=" "+v
+
+    for phrase, mapped in intent_map.items():
+        if phrase in q:
+            q += " " + mapped
+
     return q
+
 
 # ================= RETRIEVE =================
 def retrieve(question):
@@ -185,3 +202,4 @@ if st.session_state.thinking:
     st.session_state.messages.append({"role":"assistant","content":full})
     st.session_state.thinking=False
     st.rerun()
+
