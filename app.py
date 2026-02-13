@@ -59,10 +59,23 @@ if "thinking" not in st.session_state:
 
 # ================= KNOWLEDGE =================
 POLICIES=[
-"Maternity leave: Employees may take up to 16 weeks and must inform supervisor in writing.",
-"Vacation leave: Employees should take at least two weeks (10 business days) annually.",
-"Extended leave: Must be communicated to reporting manager and may require Executive Director approval."
+"""
+Maternity leave: Employees may take up to 16 weeks for childbirth or pregnancy
+and must inform supervisor in writing.
+""",
+
+"""
+Vacation leave: Employees should take at least two weeks (10 business days)
+of annual time off or holiday break.
+""",
+
+"""
+Extended leave / long leave / long absence / months away / personal leave:
+Employee must communicate absence to reporting manager and may require
+Executive Director approval.
+"""
 ]
+
 
 @st.cache_resource
 def load_model():
@@ -173,3 +186,4 @@ if st.session_state.thinking:
     st.session_state.messages.append({"role":"assistant","content":full})
     st.session_state.thinking=False
     st.rerun()
+
