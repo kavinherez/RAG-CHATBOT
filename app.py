@@ -1,8 +1,10 @@
-# ================= AI POLICY ASSISTANT — FINAL =================
+# ================= AI POLICY ASSISTANT — FINAL (SEMANTIC RAG) =================
 
 import streamlit as st
 import time
-import re
+import numpy as np
+from sentence_transformers import SentenceTransformer
+from sklearn.metrics.pairwise import cosine_similarity
 
 st.set_page_config(page_title="AI Policy Assistant", layout="wide")
 
@@ -79,66 +81,64 @@ if "messages" not in st.session_state:
 if "thinking" not in st.session_state:
     st.session_state.thinking = False
 
+# ================= COMPANY POLICY KNOWLEDGE =================
+POLICIES = [
+    {"title":"Maternity Leave",
+     "text":"Employees are encouraged to take up to 16 weeks of maternity leave and must inform their supervisor in writing as early as possible."},
+
+    {"title":"Paid Vacation",
+     "text":"Employees should take at least two weeks (10 business days) of paid vacation annually."},
+
+    {"title":"Approvals",
+     "text":"Extended leave must be communicated to the reporting manager and may require approval from the Executive Director."},
+
+    {"title":"Scope",
+     "text":"The assistant answers only HR policies, employee benefits and workplace rules."}
+]
+
+# ================= LOAD MODEL =================
+@st.cache_resource
+def load_model():
+    return SentenceTransformer("all-MiniLM-L6-v2")
+
+model = load_model()
+
+@st.cache_resource
+def embed_policies():
+    return model.encode([p["text"] for p in POLICIES])
+
+policy_embeddings = embed_policies()
+
 # ================= GUARDRAIL =================
-def is_policy_question(q: str) -> bool:
-    allowed = [
-        "leave","vacation","holiday","benefit","salary","payroll",
-        "insurance","policy","work","office","attendance","remote",
-        "maternity","paternity","sick","pto","hr","dress","conduct"
-    ]
-    q=q.lower()
-    return any(word in q for word in allowed)
+def is_greeting(q):
+    return q.lower().strip() in ["hi","hello","hey","good morning","good afternoon","good evening"]
 
-def is_greeting(q: str) -> bool:
-    q=q.lower().strip()
-    return q in ["hi","hello","hey","good morning","good afternoon","good evening"]
+# ================= SEMANTIC POLICY ENGINE =================
+def get_policy_answer(question):
 
-# ================= POLICY ENGINE =================
-def get_policy_answer(q):
-    q = q.lower()
+    if is_greeting(question):
+        return "Hello 👋 I can help you understand company HR policies like leave, benefits and approvals."
 
-    # -------- Greeting --------
-    if any(x in q for x in ["hi","hello","hey"]):
-        return "Hello 👋 I can help you understand company HR policies such as leave, benefits, workplace rules, and approvals."
+    # semantic search
+    q_embedding = model.encode([question])
+    scores = cosine_similarity(q_embedding, policy_embeddings)[0]
+    best_idx = np.argmax(scores)
+    confidence = scores[best_idx]
 
-    # -------- Capability questions --------
-    if any(x in q for x in ["what can you", "help me with", "what policies", "what do you do"]):
-        return """I can help you with:
-• Leave policies (maternity, vacation, sick leave)
-• Employee benefits
-• Workplace rules
-• Approval procedures
+    if confidence < 0.35:
+        return "I can only answer company policy related questions."
 
-Ask me anything related to company HR policies."""
-
-    # -------- Policy category: benefits --------
-    if any(x in q for x in ["benefits", "perks", "employee benefits"]):
-        return "Employee benefits include paid vacation leave and maternity leave. Ask about a specific benefit to get detailed information."
-
-    # -------- Policy category: rules --------
-    if any(x in q for x in ["rules", "company rules", "workplace rules", "policies"]):
-        return "Company policies cover employee conduct, leave procedures, and workplace guidelines. You can ask about leave, benefits, or approvals."
-
-    # -------- Specific policies --------
-    if "maternity" in q:
-        return "Employees are encouraged to take up to 16 weeks of maternity leave and must inform their supervisor in writing as early as possible."
-
-    if "vacation" in q or "paid leave" in q:
-        return "Employees should take at least two weeks (10 business days) of paid vacation annually."
-
-    # -------- Out of scope --------
-    return "Not mentioned in company policy."
-
+    return POLICIES[best_idx]["text"]
 
 # ================= STREAMING =================
 def stream_text(text, container):
     words=text.split()
-    out=""
+    output=""
     for w in words:
-        out+=w+" "
+        output+=w+" "
         container.markdown(f'''
         <div class="chat-row bot-row">
-            <div class="bot-msg">{out}</div>
+            <div class="bot-msg">{output}</div>
         </div>
         ''', unsafe_allow_html=True)
         time.sleep(0.02)
@@ -178,7 +178,7 @@ if st.session_state.thinking:
     </div>
     ''', unsafe_allow_html=True)
 
-    time.sleep(0.8)
+    time.sleep(0.6)
     answer = get_policy_answer(last_user)
     thinking_box.empty()
 
@@ -188,4 +188,3 @@ if st.session_state.thinking:
     st.session_state.messages.append({"role":"assistant","content":answer})
     st.session_state.thinking = False
     st.rerun()
-
