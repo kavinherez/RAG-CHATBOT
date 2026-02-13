@@ -1,4 +1,4 @@
-# ================= AI POLICY ASSISTANT — FINAL (STRICT GROUNDED RAG) =================
+# ================= AI POLICY ASSISTANT — FINAL PRODUCTION RAG =================
 
 import streamlit as st
 import time
@@ -12,7 +12,7 @@ st.set_page_config(page_title="AI Policy Assistant", layout="wide")
 # ================= GROQ CLIENT =================
 client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
-# ================= GLOBAL STYLE =================
+# ================= UI STYLE =================
 st.markdown("""
 <style>
 .stApp { background: #f3f4f6; }
@@ -25,8 +25,6 @@ footer {visibility:hidden;}
     border-radius:18px;
     margin-bottom:25px;
     background: radial-gradient(circle at center,#0f172a,#020617);
-    box-shadow: 0 0 40px rgba(16,163,127,0.25),
-                0 0 90px rgba(16,163,127,0.15);
 }
 .title-text{
     font-size:48px;
@@ -34,8 +32,6 @@ footer {visibility:hidden;}
     background: linear-gradient(90deg,#10a37f,#4ade80,#22d3ee);
     -webkit-background-clip:text;
     -webkit-text-fill-color:transparent;
-    text-shadow:0 0 12px rgba(16,163,127,0.6);
-    margin-bottom:6px;
 }
 .subtitle{ color:#9ca3af; font-size:18px; }
 
@@ -43,146 +39,105 @@ footer {visibility:hidden;}
 .user-row{justify-content:flex-end;}
 .bot-row{justify-content:flex-start;}
 
-.user-msg{
-    background:#1f2937;color:white;padding:12px 16px;border-radius:16px;
-    width:fit-content;max-width:55%;margin:8px 0;
-}
-
-.bot-msg{
-    background:#ffffff;color:#111827;padding:12px 16px;border-radius:16px;
-    width:fit-content;max-width:55%;margin:8px 0;
-    box-shadow:0 2px 8px rgba(0,0,0,0.08);
-}
-
-.stChatInputContainer textarea{
-    background:#ffffff !important;color:#111827 !important;
-    caret-color:#111827 !important;border-radius:14px !important;
-    border:1px solid #d1d5db !important;
-}
-.stChatInputContainer textarea::placeholder{color:#6b7280 !important;}
+.user-msg{background:#1f2937;color:white;padding:12px 16px;border-radius:16px;max-width:55%;margin:8px 0;}
+.bot-msg{background:#ffffff;color:#111827;padding:12px 16px;border-radius:16px;max-width:55%;margin:8px 0;}
 </style>
 """, unsafe_allow_html=True)
 
-# ================= HEADER =================
 st.markdown("""
 <div class="title-box">
-    <div class="title-text">AI Policy Assistant</div>
-    <div class="subtitle">Ask anything about company rules & benefits</div>
+<div class="title-text">AI Policy Assistant</div>
+<div class="subtitle">Ask anything about company rules & benefits</div>
 </div>
 """, unsafe_allow_html=True)
 
 # ================= SESSION =================
 if "messages" not in st.session_state:
-    st.session_state.messages = [
-        {"role":"assistant","content":"Hello 👋 Ask me anything about company policies."}
-    ]
-
+    st.session_state.messages=[{"role":"assistant","content":"Hello 👋 Ask me anything about company policies."}]
 if "thinking" not in st.session_state:
-    st.session_state.thinking = False
+    st.session_state.thinking=False
 
-# ================= COMPANY POLICIES =================
-POLICIES = [
-    "Employees are encouraged to take up to 16 weeks of maternity leave and must inform their supervisor in writing as early as possible.",
-    "Employees should take at least two weeks (10 business days) of paid vacation annually.",
-    "Extended leave must be communicated to the reporting manager and may require approval from the Executive Director."
+# ================= KNOWLEDGE =================
+POLICIES=[
+"Maternity leave: Employees may take up to 16 weeks and must inform supervisor in writing.",
+"Vacation leave: Employees should take at least two weeks (10 business days) annually.",
+"Extended leave: Must be communicated to reporting manager and may require Executive Director approval."
 ]
 
-# ================= LOAD EMBEDDINGS =================
 @st.cache_resource
 def load_model():
     return SentenceTransformer("all-MiniLM-L6-v2")
-
-model = load_model()
+model=load_model()
 
 @st.cache_resource
-def embed_policies():
+def embed():
     return model.encode(POLICIES)
+policy_embeddings=embed()
 
-policy_embeddings = embed_policies()
-
-# ================= QUERY NORMALIZATION =================
+# ================= NORMALIZE QUERY =================
 def normalize(q):
     q=q.lower()
     synonyms={
         "gone":"leave","away":"leave","absent":"leave",
-        "break":"leave","months":"long leave","weeks":"leave",
-        "personal":"leave","travel":"vacation"
+        "months":"long leave","weeks":"leave",
+        "travel":"vacation","break":"leave","personal":"leave"
     }
     for k,v in synonyms.items():
-        if k in q:
-            q+=" "+v
+        if k in q: q+=" "+v
     return q
 
-# ================= RETRIEVAL =================
-def retrieve_context(question):
-    q = normalize(question)
-    q_embed = model.encode([q])
-    scores = cosine_similarity(q_embed, policy_embeddings)[0]
+# ================= RETRIEVE =================
+def retrieve(question):
+    q=normalize(question)
+    q_embed=model.encode([q])
+    scores=cosine_similarity(q_embed,policy_embeddings)[0]
 
-    # keep top 2 semantically closest chunks
-    top_indices = np.argsort(scores)[-2:]
+    best=np.array(scores).max()
 
-    context_chunks = []
-    for i in top_indices:
-        if scores[i] >= 0.28:   # medium semantic match
-            context_chunks.append(POLICIES[i])
-
-    if not context_chunks:
+    # out-of-domain
+    if best<0.25:
         return None
 
-    return "\n".join(context_chunks)
+    # choose relevant policies
+    context=[]
+    for i,score in enumerate(scores):
+        if score>0.30:
+            context.append(POLICIES[i])
 
-# ================= LLM ANSWER =================
+    return "\n".join(context) if context else None
+
+# ================= LLM =================
 def ask_llm(context,question):
 
     system="""
+You are a company HR assistant.
 
-You are an HR policy assistant.
-
-Answer ONLY using the provided policy text.
-If the policy does not explicitly contain the answer, reply exactly:
-
+Rewrite the provided policy so it answers the user's question.
+Do not add advice.
+Do not invent rules.
+Do not explain beyond the policy.
+If policy doesn't contain answer, reply exactly:
 Not mentioned in company policy.
-
-Do not guess.
-Do not assume.
-Do not create new rules.
 """
 
+    user=f"Policy:\n{context}\n\nQuestion:\n{question}"
 
-
-
-
-    user=f"""
-Policy:
-{context}
-
-Question:
-{question}
-"""
-
-    stream=client.chat.completions.create(
+    return client.chat.completions.create(
         model="llama-3.1-8b-instant",
         temperature=0,
+        stream=True,
         messages=[
             {"role":"system","content":system},
             {"role":"user","content":user}
-        ],
-        stream=True
+        ]
     )
-    return stream
 
-# ================= DISPLAY CHAT =================
+# ================= DISPLAY =================
 for msg in st.session_state.messages:
     role="user-row" if msg["role"]=="user" else "bot-row"
     bubble="user-msg" if msg["role"]=="user" else "bot-msg"
-    st.markdown(f'''
-    <div class="chat-row {role}">
-        <div class="{bubble}">{msg["content"]}</div>
-    </div>
-    ''',unsafe_allow_html=True)
+    st.markdown(f'<div class="chat-row {role}"><div class="{bubble}">{msg["content"]}</div></div>',unsafe_allow_html=True)
 
-# ================= INPUT =================
 prompt=st.chat_input("Message Policy Assistant...")
 
 if prompt:
@@ -193,13 +148,13 @@ if prompt:
 # ================= RESPONSE =================
 if st.session_state.thinking:
 
-    question=st.session_state.messages[-1]["content"]
+    q=st.session_state.messages[-1]["content"]
 
     thinking=st.empty()
     thinking.markdown('<div class="chat-row bot-row"><div class="bot-msg">AI is thinking...</div></div>',unsafe_allow_html=True)
-    time.sleep(0.5)
+    time.sleep(0.4)
 
-    context=retrieve_context(question)
+    context=retrieve(q)
     thinking.empty()
 
     response_box=st.empty()
@@ -208,9 +163,8 @@ if st.session_state.thinking:
     if context is None:
         full="Not mentioned in company policy."
         response_box.markdown(f'<div class="chat-row bot-row"><div class="bot-msg">{full}</div></div>',unsafe_allow_html=True)
-
     else:
-        stream=ask_llm(context,question)
+        stream=ask_llm(context,q)
         for chunk in stream:
             if chunk.choices[0].delta.content:
                 full+=chunk.choices[0].delta.content
@@ -219,5 +173,3 @@ if st.session_state.thinking:
     st.session_state.messages.append({"role":"assistant","content":full})
     st.session_state.thinking=False
     st.rerun()
-
-
