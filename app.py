@@ -127,7 +127,7 @@ def generate_ai_answer(question):
     top_indices = np.argsort(scores)[-2:][::-1]
     top_scores = scores[top_indices]
 
-    if top_scores[0] < 0.40:
+    if top_scores[0] < 0.28:
         return None, "I can only answer company policy related questions."
 
     context_blocks = []
@@ -239,4 +239,5 @@ if st.session_state.thinking:
     st.session_state.messages.append({"role":"assistant","content":full_answer})
     st.session_state.thinking = False
     st.rerun()
+
 
