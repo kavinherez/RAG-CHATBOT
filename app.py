@@ -241,5 +241,6 @@ if (send_clicked or (user_input and user_input.endswith("\n"))):
 
         st.session_state.messages.append({"role":"assistant","content":reply})
 
-        st.session_state.live_input = ""
+        
         st.rerun()
+
