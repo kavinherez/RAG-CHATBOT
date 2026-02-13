@@ -27,6 +27,18 @@ html, body, [class*="css"]  {
     margin: auto;
     padding-top: 40px;
 }
+/* Placeholder text (Type your query here...) */
+.stChatInput textarea::placeholder {
+    color: #9fe3d3 !important;   /* soft aqua highlight */
+    opacity: 1 !important;
+    font-weight: 500;
+}
+
+/* When user clicks → placeholder fades nicely */
+.stChatInput textarea:focus::placeholder {
+    color: #5c5f62 !important;
+}
+
 
 /* Title */
 .title {
@@ -168,4 +180,5 @@ if query:
     st.rerun()
 
 st.markdown('</div>', unsafe_allow_html=True)
+
 
