@@ -95,22 +95,40 @@ def is_greeting(q: str) -> bool:
 
 # ================= POLICY ENGINE =================
 def get_policy_answer(q):
+    q = q.lower()
 
-    if not is_policy_question(q) and not is_greeting(q):
-        return "I can only answer questions related to company policies, benefits, and workplace rules."
+    # -------- Greeting --------
+    if any(x in q for x in ["hi","hello","hey"]):
+        return "Hello 👋 I can help you understand company HR policies such as leave, benefits, workplace rules, and approvals."
 
-    if is_greeting(q):
-        return "Hello 👋 How can I assist you regarding company policies?"
+    # -------- Capability questions --------
+    if any(x in q for x in ["what can you", "help me with", "what policies", "what do you do"]):
+        return """I can help you with:
+• Leave policies (maternity, vacation, sick leave)
+• Employee benefits
+• Workplace rules
+• Approval procedures
 
-    q=q.lower()
+Ask me anything related to company HR policies."""
 
+    # -------- Policy category: benefits --------
+    if any(x in q for x in ["benefits", "perks", "employee benefits"]):
+        return "Employee benefits include paid vacation leave and maternity leave. Ask about a specific benefit to get detailed information."
+
+    # -------- Policy category: rules --------
+    if any(x in q for x in ["rules", "company rules", "workplace rules", "policies"]):
+        return "Company policies cover employee conduct, leave procedures, and workplace guidelines. You can ask about leave, benefits, or approvals."
+
+    # -------- Specific policies --------
     if "maternity" in q:
         return "Employees are encouraged to take up to 16 weeks of maternity leave and must inform their supervisor in writing as early as possible."
 
-    if "vacation" in q or "pto" in q:
+    if "vacation" in q or "paid leave" in q:
         return "Employees should take at least two weeks (10 business days) of paid vacation annually."
 
+    # -------- Out of scope --------
     return "Not mentioned in company policy."
+
 
 # ================= STREAMING =================
 def stream_text(text, container):
@@ -170,3 +188,4 @@ if st.session_state.thinking:
     st.session_state.messages.append({"role":"assistant","content":answer})
     st.session_state.thinking = False
     st.rerun()
+
