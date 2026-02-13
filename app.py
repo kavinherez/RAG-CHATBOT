@@ -1,4 +1,4 @@
-# ================= AI POLICY ASSISTANT — FINAL (RAG + GROQ STREAMING) =================
+# ================= AI POLICY ASSISTANT — FINAL (STRICT GROUNDED RAG) =================
 
 import streamlit as st
 import time
@@ -82,20 +82,12 @@ if "thinking" not in st.session_state:
 
 # ================= COMPANY POLICIES =================
 POLICIES = [
-    {"title":"Maternity Leave",
-     "text":"Employees are encouraged to take up to 16 weeks of maternity leave and must inform their supervisor in writing as early as possible."},
-
-    {"title":"Paid Vacation",
-     "text":"Employees should take at least two weeks (10 business days) of paid vacation annually."},
-
-    {"title":"Approvals",
-     "text":"Extended leave must be communicated to the reporting manager and may require approval from the Executive Director."},
-
-    {"title":"Scope",
-     "text":"The assistant answers only HR policies, employee benefits and workplace rules."}
+    "Employees are encouraged to take up to 16 weeks of maternity leave and must inform their supervisor in writing as early as possible.",
+    "Employees should take at least two weeks (10 business days) of paid vacation annually.",
+    "Extended leave must be communicated to the reporting manager and may require approval from the Executive Director."
 ]
 
-# ================= LOAD EMBEDDING MODEL =================
+# ================= LOAD EMBEDDINGS =================
 @st.cache_resource
 def load_model():
     return SentenceTransformer("all-MiniLM-L6-v2")
@@ -104,152 +96,114 @@ model = load_model()
 
 @st.cache_resource
 def embed_policies():
-    return model.encode([p["text"] for p in POLICIES])
+    return model.encode(POLICIES)
 
 policy_embeddings = embed_policies()
 
-# ================= HELPERS =================
-def is_greeting(q):
-    return q.lower().strip() in ["hi","hello","hey","good morning","good afternoon","good evening"]
-
-def normalize_question(q: str):
-    q = q.lower()
-    replacements = {
-        "gone": "leave",
-        "away": "leave",
-        "absent": "leave",
-        "not coming": "leave",
-        "off work": "leave",
-        "time off": "leave",
-        "break": "leave",
-        "months": "long leave",
-        "weeks": "leave",
-        "personal reasons": "leave",
-        "travel": "vacation",
-        "holiday": "vacation",
+# ================= QUERY NORMALIZATION =================
+def normalize(q):
+    q=q.lower()
+    synonyms={
+        "gone":"leave","away":"leave","absent":"leave",
+        "break":"leave","months":"long leave","weeks":"leave",
+        "personal":"leave","travel":"vacation"
     }
-    for k, v in replacements.items():
+    for k,v in synonyms.items():
         if k in q:
-            q += " " + v
+            q+=" "+v
     return q
 
-# ================= RAG ANSWER =================
-def generate_ai_answer(question):
+# ================= RETRIEVAL =================
+def retrieve_context(question):
+    q=normalize(question)
+    q_embed=model.encode([q])
+    scores=cosine_similarity(q_embed,policy_embeddings)[0]
+    best=np.max(scores)
 
-    if is_greeting(question):
-        return None, "Hello 👋 I can help you understand company HR policies like leave, benefits and approvals."
+    if best<0.28:
+        return None
 
-    normalized_q = normalize_question(question)
-    q_embedding = model.encode([normalized_q])
+    indices=np.argsort(scores)[-2:]
+    context="\n".join([POLICIES[i] for i in indices if scores[i]>0.30])
+    return context
 
-    scores = cosine_similarity(q_embedding, policy_embeddings)[0]
-    top_indices = np.argsort(scores)[-2:][::-1]
-    top_scores = scores[top_indices]
+# ================= LLM ANSWER =================
+def ask_llm(context,question):
 
-    if top_scores[0] < 0.28:
-       return None, "Not mentioned in company policy."
+    system="""
+You are an HR policy assistant.
 
-
-    context_blocks = []
-    for idx in top_indices:
-        if scores[idx] > 0.30:
-            context_blocks.append(POLICIES[idx]["text"])
-
-    context = "\n\n".join(context_blocks)
-
-    system_prompt = """
-
-
-You are an AI HR Policy Assistant.
-
-Answer using ONLY the provided company policy context.
-Explain the policy in relation to the employee's situation.
-Do NOT invent rules or recommendations beyond the policy.
-Keep the answer short and clear.
+Rewrite the policy to answer the user's question.
+Do NOT add advice.
+Do NOT add assumptions.
+Do NOT explain beyond the policy.
+Only restate the policy in simple words.
+Keep it short.
 """
 
-
-
-
-
-    user_prompt = f"""
-Company Policy Context:
+    user=f"""
+Policy:
 {context}
 
-Employee Question:
+Question:
 {question}
 """
 
-    stream = client.chat.completions.create(
+    stream=client.chat.completions.create(
         model="llama-3.1-8b-instant",
-        temperature=0.2,
+        temperature=0,
         messages=[
-            {"role":"system","content":system_prompt},
-            {"role":"user","content":user_prompt}
+            {"role":"system","content":system},
+            {"role":"user","content":user}
         ],
         stream=True
     )
-
-    return stream, None
+    return stream
 
 # ================= DISPLAY CHAT =================
 for msg in st.session_state.messages:
-    role_class = "user-row" if msg["role"]=="user" else "bot-row"
-    bubble_class = "user-msg" if msg["role"]=="user" else "bot-msg"
+    role="user-row" if msg["role"]=="user" else "bot-row"
+    bubble="user-msg" if msg["role"]=="user" else "bot-msg"
     st.markdown(f'''
-    <div class="chat-row {role_class}">
-        <div class="{bubble_class}">{msg["content"]}</div>
+    <div class="chat-row {role}">
+        <div class="{bubble}">{msg["content"]}</div>
     </div>
-    ''', unsafe_allow_html=True)
+    ''',unsafe_allow_html=True)
 
 # ================= INPUT =================
-prompt = st.chat_input("Message Policy Assistant...")
+prompt=st.chat_input("Message Policy Assistant...")
 
 if prompt:
     st.session_state.messages.append({"role":"user","content":prompt})
-    st.session_state.thinking = True
+    st.session_state.thinking=True
     st.rerun()
 
-# ================= RESPONSE HANDLER =================
+# ================= RESPONSE =================
 if st.session_state.thinking:
 
-    last_user = st.session_state.messages[-1]["content"]
+    question=st.session_state.messages[-1]["content"]
 
-    thinking_box = st.empty()
-    thinking_box.markdown('''
-    <div class="chat-row bot-row">
-        <div class="bot-msg">AI is thinking...</div>
-    </div>
-    ''', unsafe_allow_html=True)
+    thinking=st.empty()
+    thinking.markdown('<div class="chat-row bot-row"><div class="bot-msg">AI is thinking...</div></div>',unsafe_allow_html=True)
+    time.sleep(0.5)
 
-    time.sleep(0.6)
+    context=retrieve_context(question)
+    thinking.empty()
 
-    stream, fallback = generate_ai_answer(last_user)
-    thinking_box.empty()
+    response_box=st.empty()
+    full=""
 
-    response_box = st.empty()
-    full_answer = ""
+    if context is None:
+        full="Not mentioned in company policy."
+        response_box.markdown(f'<div class="chat-row bot-row"><div class="bot-msg">{full}</div></div>',unsafe_allow_html=True)
 
-    if fallback:
-        full_answer = fallback
-        response_box.markdown(f'''
-        <div class="chat-row bot-row">
-            <div class="bot-msg">{full_answer}</div>
-        </div>
-        ''', unsafe_allow_html=True)
     else:
+        stream=ask_llm(context,question)
         for chunk in stream:
-            delta = chunk.choices[0].delta
-            if hasattr(delta, "content") and delta.content:
-                full_answer += delta.content
-                response_box.markdown(f'''
-                <div class="chat-row bot-row">
-                    <div class="bot-msg">{full_answer}</div>
-                </div>
-                ''', unsafe_allow_html=True)
+            if chunk.choices[0].delta.content:
+                full+=chunk.choices[0].delta.content
+                response_box.markdown(f'<div class="chat-row bot-row"><div class="bot-msg">{full}</div></div>',unsafe_allow_html=True)
 
-    st.session_state.messages.append({"role":"assistant","content":full_answer})
-    st.session_state.thinking = False
+    st.session_state.messages.append({"role":"assistant","content":full})
+    st.session_state.thinking=False
     st.rerun()
-
-
