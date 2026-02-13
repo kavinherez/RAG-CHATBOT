@@ -8,84 +8,124 @@ from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
-# ---------------- PAGE CONFIG ----------------
+# ---------------- PAGE ----------------
 st.set_page_config(page_title="Policy Assistant", page_icon="🤖", layout="wide")
 
-# ---------------- STYLE ----------------
+# ---------------- STYLING ----------------
 st.markdown("""
 <style>
-html, body, [class*="css"]  {
-    background: linear-gradient(180deg,#0b1220,#020617);
+
+html, body, [class*="css"] {
+    background: linear-gradient(180deg,#0f172a,#020617);
     color: white;
 }
 
-/* Center container */
-.main-container {
-    max-width: 900px;
+/* center container */
+.main {
+    max-width: 880px;
     margin: auto;
     padding-top: 40px;
 }
 
-/* Title */
+/* title */
 .title {
-    font-size: 42px;
-    font-weight: 700;
-    text-align: center;
+    font-size: 48px;
+    font-weight: 800;
+    text-align:center;
     background: linear-gradient(90deg,#22d3ee,#34d399);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    margin-bottom: 8px;
+    -webkit-background-clip:text;
+    -webkit-text-fill-color:transparent;
 }
 
 .subtitle {
     text-align:center;
     color:#94a3b8;
-    margin-bottom:40px;
+    margin-bottom:35px;
 }
 
-/* Chat cards */
-.user-card {
-    background: #065f46;
-    padding:14px 18px;
+/* welcome card */
+.welcome {
+    background: rgba(30,41,59,0.6);
+    border:1px solid rgba(148,163,184,0.2);
+    backdrop-filter: blur(10px);
+    padding:22px;
     border-radius:18px;
-    width: fit-content;
+    margin-bottom:30px;
+}
+
+/* suggestion buttons */
+.chips {
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    margin-top:15px;
+}
+
+.chip {
+    padding:8px 14px;
+    background:#0f172a;
+    border:1px solid #334155;
+    border-radius:999px;
+    font-size:14px;
+    cursor:pointer;
+}
+
+/* chat bubbles */
+.user {
+    background:#065f46;
+    padding:14px 18px;
+    border-radius:16px 16px 4px 16px;
+    margin:12px 0;
+    width:fit-content;
     max-width:75%;
     margin-left:auto;
-    margin-bottom:18px;
 }
 
-.bot-card {
+.bot {
     background:#1e293b;
     padding:14px 18px;
-    border-radius:18px;
-    width: fit-content;
+    border-radius:16px 16px 16px 4px;
+    margin:12px 0;
+    width:fit-content;
     max-width:75%;
-    margin-right:auto;
-    margin-bottom:18px;
 }
 
-/* Input box */
-.stTextInput>div>div>input {
-    background:#0f172a;
-    color:white;
-    border-radius:12px;
-    border:1px solid #334155;
-    padding:14px;
-    font-size:16px;
+/* input */
+.stChatInput textarea {
+    background:#020617 !important;
+    border:1px solid #334155 !important;
+    border-radius:14px !important;
+    color:white !important;
 }
+
 </style>
 """, unsafe_allow_html=True)
 
 # ---------------- HEADER ----------------
-st.markdown('<div class="main-container">', unsafe_allow_html=True)
+st.markdown('<div class="main">', unsafe_allow_html=True)
 st.markdown('<div class="title">Policy Assistant</div>', unsafe_allow_html=True)
-st.markdown('<div class="subtitle">Ask anything about company rules & benefits</div>', unsafe_allow_html=True)
+st.markdown('<div class="subtitle">Your AI workplace knowledge companion</div>', unsafe_allow_html=True)
 
 # ---------------- SESSION ----------------
 if "messages" not in st.session_state:
-    st.session_state.messages = [
-        {"role":"assistant","content":"Hello 👋 Ask me anything about company policies."}
-    ]
+    st.session_state.messages = []
+
+# ---------------- WELCOME PANEL ----------------
+if len(st.session_state.messages) == 0:
+    st.markdown("""
+    <div class="welcome">
+    👋 <b>Welcome!</b><br><br>
+    I can help you understand company policies, HR rules, and employee benefits instantly.
+    <br><br>
+    Try asking:
+    <div class="chips">
+        <div class="chip">Maternity leave policy</div>
+        <div class="chip">Work from home rules</div>
+        <div class="chip">Notice period</div>
+        <div class="chip">Leave balance</div>
+    </div>
+    </div>
+    """, unsafe_allow_html=True)
 
 # ---------------- LOAD RAG ----------------
 @st.cache_resource
@@ -103,13 +143,13 @@ def load_rag():
     llm = ChatGroq(model_name="llama-3.1-8b-instant")
 
     prompt = ChatPromptTemplate.from_template("""
-You are a helpful HR assistant.
+You are an HR assistant.
 
 Rules:
-- If greeting → respond naturally
-- If question outside policy → say politely you only answer company policy questions
-- If answer exists → answer clearly and shortly
-- Do NOT say 'based on context'
+- Answer greetings naturally
+- Only answer company policy related questions
+- If outside scope say politely you handle company policies only
+- Keep answers clear and concise
 
 Context:
 {context}
@@ -134,9 +174,9 @@ rag_chain = load_rag()
 # ---------------- DISPLAY CHAT ----------------
 for msg in st.session_state.messages:
     if msg["role"] == "user":
-        st.markdown(f'<div class="user-card">{msg["content"]}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="user">{msg["content"]}</div>', unsafe_allow_html=True)
     else:
-        st.markdown(f'<div class="bot-card">{msg["content"]}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="bot">{msg["content"]}</div>', unsafe_allow_html=True)
 
 # ---------------- INPUT ----------------
 query = st.chat_input("Ask a policy question...")
@@ -145,9 +185,9 @@ if query:
     st.session_state.messages.append({"role":"user","content":query})
 
     with st.spinner("Thinking..."):
-        response = rag_chain.invoke(query)
+        reply = rag_chain.invoke(query)
 
-    st.session_state.messages.append({"role":"assistant","content":response})
+    st.session_state.messages.append({"role":"assistant","content":reply})
     st.rerun()
 
 st.markdown('</div>', unsafe_allow_html=True)
