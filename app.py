@@ -140,12 +140,14 @@ def generate_ai_answer(question):
     system_prompt = """
 You are an AI HR Policy Assistant.
 
-RULES:
-- Answer ONLY using the provided company policy context
-- Interpret policies for user situations (not just copy text)
-- If information missing, say: Not mentioned in company policy.
-- Do NOT make assumptions
-- Keep response clear and professional
+STRICT RULES:
+- Only answer using the provided company policy context
+- Do NOT provide suggestions, recommendations, or reasoning beyond the text
+- Do NOT infer or assume missing information
+- If the answer is not explicitly written in the policy, reply exactly:
+  "Not mentioned in company policy."
+- Keep responses short and factual
+
 """
 
     user_prompt = f"""
@@ -237,3 +239,4 @@ if st.session_state.thinking:
     st.session_state.messages.append({"role":"assistant","content":full_answer})
     st.session_state.thinking = False
     st.rerun()
+
