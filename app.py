@@ -1,4 +1,4 @@
-# ================= AI POLICY ASSISTANT — PRODUCTION FINAL =================
+# ================= AI POLICY ASSISTANT — FINAL =================
 
 import streamlit as st
 import time
@@ -52,7 +52,6 @@ footer {visibility:hidden;}
 }
 
 /* INPUT */
-.stChatInputContainer{padding-bottom:25px;}
 .stChatInputContainer textarea{
     background:#ffffff !important;color:#111827 !important;
     caret-color:#111827 !important;border-radius:14px !important;
@@ -77,6 +76,9 @@ if "messages" not in st.session_state:
         {"role":"assistant","content":"Hello 👋 Ask me anything about company policies."}
     ]
 
+if "thinking" not in st.session_state:
+    st.session_state.thinking = False
+
 # ================= GUARDRAIL =================
 def is_policy_question(q: str) -> bool:
     allowed = [
@@ -94,51 +96,47 @@ def is_greeting(q: str) -> bool:
 # ================= POLICY ENGINE =================
 def get_policy_answer(q):
 
-    # block non HR questions
     if not is_policy_question(q) and not is_greeting(q):
         return "I can only answer questions related to company policies, benefits, and workplace rules."
 
-    # greeting
     if is_greeting(q):
         return "Hello 👋 How can I assist you regarding company policies?"
 
     q=q.lower()
 
-    # known policies
     if "maternity" in q:
         return "Employees are encouraged to take up to 16 weeks of maternity leave and must inform their supervisor in writing as early as possible."
 
     if "vacation" in q or "pto" in q:
         return "Employees should take at least two weeks (10 business days) of paid vacation annually."
 
-    # HR but not in KB
     return "Not mentioned in company policy."
 
 # ================= STREAMING =================
-def stream_text(text):
+def stream_text(text, container):
     words=text.split()
     out=""
     for w in words:
         out+=w+" "
-        yield out
+        container.markdown(f'''
+        <div class="chat-row bot-row">
+            <div class="bot-msg">{out}</div>
+        </div>
+        ''', unsafe_allow_html=True)
         time.sleep(0.02)
 
 # ================= DISPLAY CHAT =================
 for msg in st.session_state.messages:
-    role=msg["role"]
-    content=msg["content"]
-
-    if role=="user":
+    if msg["role"]=="user":
         st.markdown(f'''
         <div class="chat-row user-row">
-            <div class="user-msg">{content}</div>
+            <div class="user-msg">{msg["content"]}</div>
         </div>
         ''', unsafe_allow_html=True)
-
     else:
         st.markdown(f'''
         <div class="chat-row bot-row">
-            <div class="bot-msg">{content}</div>
+            <div class="bot-msg">{msg["content"]}</div>
         </div>
         ''', unsafe_allow_html=True)
 
@@ -146,31 +144,29 @@ for msg in st.session_state.messages:
 prompt = st.chat_input("Message Policy Assistant...")
 
 if prompt:
-
-    # store user msg
     st.session_state.messages.append({"role":"user","content":prompt})
+    st.session_state.thinking = True
+    st.rerun()
 
-    # show thinking
-    thinking = st.empty()
-    thinking.markdown('''
+# ================= RESPONSE HANDLER =================
+if st.session_state.thinking:
+
+    last_user = st.session_state.messages[-1]["content"]
+
+    thinking_box = st.empty()
+    thinking_box.markdown('''
     <div class="chat-row bot-row">
         <div class="bot-msg">AI is thinking...</div>
     </div>
     ''', unsafe_allow_html=True)
 
-    answer = get_policy_answer(prompt)
-    thinking.empty()
+    time.sleep(0.8)
+    answer = get_policy_answer(last_user)
+    thinking_box.empty()
 
-    # streaming reply
     response_box = st.empty()
-    full=""
-    for chunk in stream_text(answer):
-        full=chunk
-        response_box.markdown(f'''
-        <div class="chat-row bot-row">
-            <div class="bot-msg">{full}</div>
-        </div>
-        ''', unsafe_allow_html=True)
+    stream_text(answer, response_box)
 
-    st.session_state.messages.append({"role":"assistant","content":full})
+    st.session_state.messages.append({"role":"assistant","content":answer})
+    st.session_state.thinking = False
     st.rerun()
