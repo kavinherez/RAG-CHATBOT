@@ -116,42 +116,58 @@ def is_greeting(q):
     return q.lower().strip() in ["hi","hello","hey","good morning","good afternoon","good evening"]
 
 # ================= GROQ RAG ANSWER =================
+# ================= GROQ RAG ANSWER (IMPROVED) =================
 def generate_ai_answer(question):
 
     if is_greeting(question):
         return None, "Hello 👋 I can help you understand company HR policies like leave, benefits and approvals."
 
+    # ---- semantic search ----
     q_embedding = model.encode([question])
     scores = cosine_similarity(q_embedding, policy_embeddings)[0]
-    best_idx = np.argmax(scores)
-    confidence = scores[best_idx]
 
-    if confidence < 0.35:
+    # get top 2 relevant policies instead of 1
+    top_indices = np.argsort(scores)[-2:][::-1]
+    top_scores = scores[top_indices]
+
+    # if nothing relevant
+    if top_scores[0] < 0.40:
         return None, "I can only answer company policy related questions."
 
-    context = POLICIES[best_idx]["text"]
+    # build richer context
+    context_blocks = []
+    for idx in top_indices:
+        if scores[idx] > 0.30:
+            context_blocks.append(POLICIES[idx]["text"])
 
+    context = "\n\n".join(context_blocks)
+
+    # ---- system prompt ----
     system_prompt = """
 You are an AI HR Policy Assistant.
 
-STRICT RULES:
-- Answer ONLY using the provided company policy
+RULES:
+- Answer ONLY using the provided company policy context
+- Interpret policies for user situations (not just copy text)
 - If information missing, say: Not mentioned in company policy.
-- Do NOT assume anything
-- Keep answer clear and professional
+- Do NOT make assumptions
+- Keep response clear and professional
 """
 
     user_prompt = f"""
-Company Policy:
+Company Policy Context:
 {context}
 
-User Question:
+Employee Question:
 {question}
+
+Provide a helpful HR explanation to the employee.
 """
 
+    # ---- GROQ STREAM ----
     stream = client.chat.completions.create(
-       model="llama-3.1-8b-instant",
-        temperature=0,
+        model="llama-3.1-8b-instant",
+        temperature=0.2,
         messages=[
             {"role":"system","content":system_prompt},
             {"role":"user","content":user_prompt}
@@ -160,6 +176,7 @@ User Question:
     )
 
     return stream, None
+
 
 # ================= DISPLAY CHAT =================
 for msg in st.session_state.messages:
@@ -213,10 +230,12 @@ if st.session_state.thinking:
         ''', unsafe_allow_html=True)
 
     else:
-        for chunk in stream:
-            if chunk.choices[0].delta.content:
-                token = chunk.choices[0].delta.content
-                full_answer += token
+         for chunk in stream:
+         delta = chunk.choices[0].delta
+    if hasattr(delta, "content") and delta.content:
+        token = delta.content
+        full_answer += token
+
                 response_box.markdown(f'''
                 <div class="chat-row bot-row">
                     <div class="bot-msg">{full_answer}</div>
@@ -226,4 +245,5 @@ if st.session_state.thinking:
     st.session_state.messages.append({"role":"assistant","content":full_answer})
     st.session_state.thinking = False
     st.rerun()
+
 
