@@ -1,183 +1,171 @@
-# ================= AI POLICY ASSISTANT — FINAL APP.PY =================
-
 import streamlit as st
 import time
 
+# ---------------- PAGE CONFIG ----------------
 st.set_page_config(page_title="AI Policy Assistant", layout="wide")
 
-# ================= GLOBAL STYLES =================
-st.markdown("""
-<style>
-
-/* App background */
-.stApp {
-    background: #f3f4f6;  
-}
-
-
-/* Hide Streamlit header */
-header {visibility: hidden;}
-footer {visibility: hidden;}
-
-/* Glow Title Container */
-.title-box{
-    text-align:center;
-    padding:35px 20px;
-    border-radius:18px;
-    margin-bottom:25px;
-    background: radial-gradient(circle at center,#0f172a,#020617);
-    box-shadow: 0 0 40px rgba(16,163,127,0.25),
-                0 0 90px rgba(16,163,127,0.15);
-}
-
-/* Glow Text */
-.title-text{
-    font-size:48px;
-    font-weight:800;
-    background: linear-gradient(90deg,#10a37f,#4ade80,#22d3ee);
-    -webkit-background-clip:text;
-    -webkit-text-fill-color:transparent;
-    text-shadow:0 0 12px rgba(16,163,127,0.6);
-    margin-bottom:6px;
-}
-
-.subtitle{
-    color:#9ca3af;
-    font-size:18px;
-}
-
-/* Chat bubbles */
-.chat-row{
-    display:flex;
-    width:100%;
-}
-
-.user-row{
-    justify-content:flex-end;
-}
-
-.bot-row{
-    justify-content:flex-start;
-}
-
-.user-msg{
-    background:#1f2937;
-    color:white;
-    padding:12px 16px;
-    border-radius:16px;
-    width:fit-content;
-    max-width:55%;
-    margin:8px 0;
-}
-
-.bot-msg{
-    background:#ffffff;
-    color:#111827;
-    padding:12px 16px;
-    border-radius:16px;
-    width:fit-content;
-    max-width:55%;
-    margin:8px 0;
-}
-
-
-/* Input box */
-.stChatInputContainer textarea{
-    background:#111827 !important;
-    color:white !important;
-    caret-color:white !important;
-    border-radius:14px !important;
-    border:1px solid #374151 !important;
-}
-
-/* Placeholder text */
-.stChatInputContainer textarea::placeholder{
-    color:#d1d5db !important;
-}
-
-</style>
-""", unsafe_allow_html=True)
-
-
-# ================= HEADER =================
-st.markdown("""
-<div class="title-box">
-    <div class="title-text">AI Policy Assistant</div>
-    <div class="subtitle">Ask anything about company rules & benefits</div>
-</div>
-""", unsafe_allow_html=True)
-
-
-# ================= SESSION =================
+# ---------------- SESSION STATE ----------------
 if "messages" not in st.session_state:
     st.session_state.messages = [
         {"role":"assistant","content":"Hello 👋 Ask me anything about company policies."}
     ]
 
+# ---------------- CSS ----------------
+st.markdown("""
+<style>
 
-# ================= FAKE POLICY ENGINE =================
-def get_policy_answer(q):
+html, body, [data-testid="stAppViewContainer"]{
+    background:#0f172a;
+    color:white;
+    font-family: Inter, sans-serif;
+}
+
+/* HEADER */
+.header{
+    text-align:center;
+    padding:28px 10px 22px 10px;
+    border-radius:18px;
+    margin-bottom:20px;
+    background:linear-gradient(135deg,#020617,#020617,#071d2b);
+    box-shadow:0px 0px 45px rgba(0,255,200,0.15);
+}
+
+.title{
+    font-size:46px;
+    font-weight:700;
+    background:linear-gradient(90deg,#00ffd5,#4ade80);
+    -webkit-background-clip:text;
+    -webkit-text-fill-color:transparent;
+    text-shadow:0 0 18px rgba(0,255,200,.35);
+}
+
+.subtitle{
+    color:#94a3b8;
+    margin-top:6px;
+    font-size:16px;
+}
+
+/* CHAT CONTAINER */
+.chat-container{
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+    padding:10px 4% 120px 4%;
+}
+
+/* ROWS */
+.chat-row{
+    display:flex;
+    width:100%;
+}
+
+.user-row{ justify-content:flex-end; }
+.bot-row{ justify-content:flex-start; }
+
+/* BUBBLES */
+.user-msg{
+    background:#1e293b;
+    color:white;
+    padding:12px 16px;
+    border-radius:18px 18px 4px 18px;
+    max-width:60%;
+    font-size:15px;
+    line-height:1.45;
+    white-space:pre-wrap;
+    box-shadow:0 4px 14px rgba(0,0,0,.35);
+}
+
+.bot-msg{
+    background:#ffffff;
+    color:#0f172a;
+    padding:12px 16px;
+    border-radius:18px 18px 18px 4px;
+    max-width:60%;
+    font-size:15px;
+    line-height:1.45;
+    white-space:pre-wrap;
+    box-shadow:0 4px 14px rgba(0,0,0,.25);
+}
+
+/* INPUT */
+.stTextInput>div>div>input{
+    background:#020617;
+    color:white;
+    border:1px solid #334155;
+    border-radius:14px;
+    padding:14px;
+}
+.stTextInput>div>div>input::placeholder{color:#cbd5e1;}
+.stTextInput>div>div>input:focus{
+    border:1px solid #00ffd5;
+    box-shadow:0 0 8px rgba(0,255,200,.4);
+}
+
+</style>
+""", unsafe_allow_html=True)
+
+# ---------------- HEADER ----------------
+st.markdown("""
+<div class="header">
+    <div class="title">AI Policy Assistant</div>
+    <div class="subtitle">Ask anything about company rules & benefits</div>
+</div>
+""", unsafe_allow_html=True)
+
+# ---------------- DISPLAY CHAT ----------------
+st.markdown('<div class="chat-container">', unsafe_allow_html=True)
+
+for msg in st.session_state.messages:
+    if msg["role"] == "user":
+        st.markdown(f"""
+        <div class="chat-row user-row">
+            <div class="user-msg">{msg["content"]}</div>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown(f"""
+        <div class="chat-row bot-row">
+            <div class="bot-msg">{msg["content"]}</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+st.markdown('</div>', unsafe_allow_html=True)
+
+# ---------------- INPUT ----------------
+user_input = st.text_input("Message", placeholder="Message Policy Assistant...", key="input")
+
+# ---------------- POLICY ANSWER LOGIC ----------------
+def answer_question(q):
+
     q = q.lower()
 
-    if any(x in q for x in ["hi","hello","hey"]):
+    greetings = ["hi","hello","hey","good morning","good evening"]
+    if q in greetings:
         return "Hello 👋 How can I assist you regarding company policies?"
 
     if "maternity" in q:
-        return "Employees are encouraged to take up to 16 weeks of maternity leave and must inform their supervisor in writing as early as possible."
+        return """Employees are encouraged to take up to 16 weeks of maternity leave.
+They must inform their supervisor in writing as early as possible.
+Extended leave must also be discussed with the Executive Director."""
 
-    if "vacation" in q:
-        return "Employees should take at least two weeks (10 business days) of paid vacation annually."
+    if "vacation" in q or "leave balance" in q:
+        return "Employees should take a minimum of two weeks (10 business days) of paid vacation per year."
+
+    if "approval" in q:
+        return "You must inform your supervisor in writing in advance. Extended leave requires Executive Director discussion."
 
     return "Not mentioned in company policy."
 
+# ---------------- SEND MESSAGE ----------------
+if user_input:
 
-# ================= STREAMING RESPONSE =================
-def stream_text(text):
-    words = text.split()
-    partial = ""
-    for w in words:
-        partial += w + " "
-        yield partial
-        time.sleep(0.03)
+    st.session_state.messages.append({"role":"user","content":user_input})
 
+    # typing indicator
+    with st.spinner("AI is thinking..."):
+        time.sleep(0.6)
+        reply = answer_question(user_input)
 
-# ================= DISPLAY CHAT =================
-for msg in st.session_state.messages:
-   if msg["role"] == "user":
-    st.markdown(f'''
-    <div class="chat-row user-row">
-        <div class="user-msg">{msg["content"]}</div>
-    </div>
-    ''', unsafe_allow_html=True)
-else:
-    st.markdown(f'''
-    <div class="chat-row bot-row">
-        <div class="bot-msg">{msg["content"]}</div>
-    </div>
-    ''', unsafe_allow_html=True)
+    st.session_state.messages.append({"role":"assistant","content":reply})
 
-
-
-# ================= INPUT =================
-prompt = st.chat_input("Message Policy Assistant...")
-
-if prompt:
-    st.session_state.messages.append({"role":"user","content":prompt})
-    st.markdown(f'<div class="user-msg">{prompt}</div>', unsafe_allow_html=True)
-
-    thinking = st.empty()
-    thinking.markdown('<div class="bot-msg">AI is thinking...</div>', unsafe_allow_html=True)
-
-    time.sleep(0.7)
-    answer = get_policy_answer(prompt)
-
-    thinking.empty()
-
-    response_box = st.empty()
-    full = ""
-    for chunk in stream_text(answer):
-        full = chunk
-        response_box.markdown(f'<div class="bot-msg">{full}</div>', unsafe_allow_html=True)
-
-    st.session_state.messages.append({"role":"assistant","content":full})
-
+    st.rerun()
