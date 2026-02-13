@@ -58,34 +58,35 @@ if "thinking" not in st.session_state:
     st.session_state.thinking=False
 
 # ================= KNOWLEDGE =================
-POLICIES=[
-"""
-Maternity leave: Employees may take up to 16 weeks for childbirth or pregnancy
-and must inform supervisor in writing.
-""",
+POLICIES = [
+{
+"search": "maternity leave pregnancy childbirth 16 weeks inform supervisor",
+"display": "Employees may take up to 16 weeks of maternity leave and must inform their supervisor in writing."
+},
 
-"""
-Vacation leave: Employees should take at least two weeks (10 business days)
-of annual time off or holiday break.
-""",
+{
+"search": "vacation leave holiday annual time off two weeks 10 days",
+"display": "Employees should take at least two weeks (10 business days) of vacation annually."
+},
 
-"""
-Extended leave / long leave / long absence / months away / personal leave:
-Employee must communicate absence to reporting manager and may require
-Executive Director approval.
-"""
+{
+"search": "extended leave long leave months away personal leave long absence approval manager executive director",
+"display": "Extended leave must be communicated to the reporting manager and may require Executive Director approval."
+}
 ]
 
-
+# ================= EMBEDDINGS =================
 @st.cache_resource
 def load_model():
     return SentenceTransformer("all-MiniLM-L6-v2")
-model=load_model()
+
+model = load_model()
 
 @st.cache_resource
 def embed():
-    return model.encode(POLICIES)
-policy_embeddings=embed()
+    return model.encode([p["search"] for p in POLICIES])   # FIXED
+
+policy_embeddings = embed()
 
 # ================= NORMALIZE QUERY =================
 def normalize(q):
@@ -107,15 +108,13 @@ def retrieve(question):
 
     best=np.array(scores).max()
 
-    # out-of-domain
     if best<0.25:
         return None
 
-    # choose relevant policies
     context=[]
     for i,score in enumerate(scores):
         if score>0.30:
-            context.append(POLICIES[i])
+            context.append(POLICIES[i]["display"])   # FIXED
 
     return "\n".join(context) if context else None
 
@@ -186,4 +185,3 @@ if st.session_state.thinking:
     st.session_state.messages.append({"role":"assistant","content":full})
     st.session_state.thinking=False
     st.rerun()
-
