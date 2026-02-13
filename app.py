@@ -57,7 +57,7 @@ if "messages" not in st.session_state:
 if "thinking" not in st.session_state:
     st.session_state.thinking=False
 
-# ================= KNOWLEDGE =================
+# ================= KNOWLEDGE BASE =================
 POLICIES = [
 {
 "search": "maternity leave pregnancy childbirth 16 weeks inform supervisor",
@@ -75,49 +75,35 @@ POLICIES = [
 }
 ]
 
-# ================= EMBEDDINGS =================
+# ================= LOAD MODEL =================
 @st.cache_resource
 def load_model():
     return SentenceTransformer("all-MiniLM-L6-v2")
 
 model = load_model()
 
+# IMPORTANT FIX — embed ONLY search text
 @st.cache_resource
 def embed():
-    return model.encode([p["search"] for p in POLICIES])   # FIXED
+    return model.encode([p["search"] for p in POLICIES])
 
 policy_embeddings = embed()
 
 # ================= NORMALIZE QUERY =================
 def normalize(q):
     q=q.lower()
-
-    intent_map = {
-        "long leave": "extended leave",
-        "long vacation": "extended leave",
-        "months leave": "extended leave",
-        "few months": "extended leave",
-        "3 months": "extended leave",
-        "two months": "extended leave",
-        "1 month": "extended leave",
-        "personal leave": "extended leave",
-        "personal reasons": "extended leave",
-        "not coming to work": "extended leave",
-        "gone for": "extended leave",
-        "away for": "extended leave",
-        "leave for months": "extended leave",
-        "break from work": "extended leave",
-        "taking time off": "leave",
+    synonyms={
+        "gone":"leave","away":"leave","absent":"leave",
+        "months":"long leave","weeks":"leave",
+        "travel":"vacation","break":"leave","personal":"leave",
+        "long":"long leave"
     }
-
-    for phrase, mapped in intent_map.items():
-        if phrase in q:
-            q += " " + mapped
-
+    for k,v in synonyms.items():
+        if k in q:
+            q+=" "+v
     return q
 
-
-# ================= RETRIEVE =================
+# ================= RETRIEVE CONTEXT =================
 def retrieve(question):
     q=normalize(question)
     q_embed=model.encode([q])
@@ -131,7 +117,7 @@ def retrieve(question):
     context=[]
     for i,score in enumerate(scores):
         if score>0.30:
-            context.append(POLICIES[i]["display"])   # FIXED
+            context.append(POLICIES[i]["display"])
 
     return "\n".join(context) if context else None
 
@@ -161,7 +147,7 @@ Not mentioned in company policy.
         ]
     )
 
-# ================= DISPLAY =================
+# ================= DISPLAY CHAT =================
 for msg in st.session_state.messages:
     role="user-row" if msg["role"]=="user" else "bot-row"
     bubble="user-msg" if msg["role"]=="user" else "bot-msg"
@@ -202,4 +188,3 @@ if st.session_state.thinking:
     st.session_state.messages.append({"role":"assistant","content":full})
     st.session_state.thinking=False
     st.rerun()
-
