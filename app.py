@@ -119,15 +119,18 @@ def retrieve_context(question):
     q_embed = model.encode([q])
     scores = cosine_similarity(q_embed, policy_embeddings)[0]
 
-    relevant = []
-    for i, score in enumerate(scores):
-        if score >= 0.38:   # strict grounding threshold
-            relevant.append(POLICIES[i])
+    # keep top 2 semantically closest chunks
+    top_indices = np.argsort(scores)[-2:]
 
-    if not relevant:
+    context_chunks = []
+    for i in top_indices:
+        if scores[i] >= 0.28:   # medium semantic match
+            context_chunks.append(POLICIES[i])
+
+    if not context_chunks:
         return None
 
-    return "\n".join(relevant)
+    return "\n".join(context_chunks)
 
 # ================= LLM ANSWER =================
 def ask_llm(context,question):
@@ -145,6 +148,8 @@ Do not guess.
 Do not assume.
 Do not create new rules.
 """
+
+
 
 
 
@@ -214,4 +219,5 @@ if st.session_state.thinking:
     st.session_state.messages.append({"role":"assistant","content":full})
     st.session_state.thinking=False
     st.rerun()
+
 
