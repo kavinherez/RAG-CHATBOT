@@ -6,3 +6,6 @@ langchain-groq
 langchain-chroma
 sentence-transformers
 pypdf
+sentence-transformers
+scikit-learn
+
