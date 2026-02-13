@@ -8,4 +8,5 @@ sentence-transformers
 pypdf
 sentence-transformers
 scikit-learn
+groq
 
