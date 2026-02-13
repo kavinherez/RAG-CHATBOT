@@ -28,6 +28,30 @@ body {background-color:#0f172a;}
 .assistant-bubble em{opacity:0.6;}
 </style>
 """, unsafe_allow_html=True)
+# ================= HEADER =================
+st.markdown("""
+<div style="text-align:center; margin-top:10px; margin-bottom:30px">
+    <h1 style="
+        font-size:42px;
+        font-weight:700;
+        background: linear-gradient(90deg,#10a37f,#4ade80);
+        -webkit-background-clip:text;
+        -webkit-text-fill-color:transparent;
+        margin-bottom:8px;
+    ">
+        AI Policy Assistant
+    </h1>
+
+    <p style="
+        font-size:18px;
+        color:#9ca3af;
+        margin-top:0px;
+    ">
+        Ask anything about company rules & benefits
+    </p>
+</div>
+""", unsafe_allow_html=True)
+
 
 # ---------------- STREAMING RESPONSE ----------------
 def stream_text(text: str):
@@ -105,3 +129,4 @@ if user_input:
 
     # Save final response
     st.session_state.messages.append({"role": "assistant", "content": final_response})
+
