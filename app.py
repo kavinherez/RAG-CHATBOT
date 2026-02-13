@@ -1,17 +1,20 @@
-# ================= AI POLICY ASSISTANT — FINAL (SEMANTIC RAG) =================
+# ================= AI POLICY ASSISTANT — FINAL (RAG + GROQ STREAMING) =================
 
 import streamlit as st
 import time
 import numpy as np
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
+from groq import Groq
 
 st.set_page_config(page_title="AI Policy Assistant", layout="wide")
+
+# ================= GROQ CLIENT =================
+client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
 # ================= GLOBAL STYLE =================
 st.markdown("""
 <style>
-
 .stApp { background: #f3f4f6; }
 header {visibility:hidden;}
 footer {visibility:hidden;}
@@ -60,7 +63,6 @@ footer {visibility:hidden;}
     border:1px solid #d1d5db !important;
 }
 .stChatInputContainer textarea::placeholder{color:#6b7280 !important;}
-
 </style>
 """, unsafe_allow_html=True)
 
@@ -81,7 +83,7 @@ if "messages" not in st.session_state:
 if "thinking" not in st.session_state:
     st.session_state.thinking = False
 
-# ================= COMPANY POLICY KNOWLEDGE =================
+# ================= COMPANY POLICIES =================
 POLICIES = [
     {"title":"Maternity Leave",
      "text":"Employees are encouraged to take up to 16 weeks of maternity leave and must inform their supervisor in writing as early as possible."},
@@ -96,7 +98,7 @@ POLICIES = [
      "text":"The assistant answers only HR policies, employee benefits and workplace rules."}
 ]
 
-# ================= LOAD MODEL =================
+# ================= LOAD EMBEDDING MODEL =================
 @st.cache_resource
 def load_model():
     return SentenceTransformer("all-MiniLM-L6-v2")
@@ -109,39 +111,55 @@ def embed_policies():
 
 policy_embeddings = embed_policies()
 
-# ================= GUARDRAIL =================
+# ================= HELPERS =================
 def is_greeting(q):
     return q.lower().strip() in ["hi","hello","hey","good morning","good afternoon","good evening"]
 
-# ================= SEMANTIC POLICY ENGINE =================
-def get_policy_answer(question):
+# ================= GROQ RAG ANSWER =================
+def generate_ai_answer(question):
 
     if is_greeting(question):
-        return "Hello 👋 I can help you understand company HR policies like leave, benefits and approvals."
+        return None, "Hello 👋 I can help you understand company HR policies like leave, benefits and approvals."
 
-    # semantic search
     q_embedding = model.encode([question])
     scores = cosine_similarity(q_embedding, policy_embeddings)[0]
     best_idx = np.argmax(scores)
     confidence = scores[best_idx]
 
     if confidence < 0.35:
-        return "I can only answer company policy related questions."
+        return None, "I can only answer company policy related questions."
 
-    return POLICIES[best_idx]["text"]
+    context = POLICIES[best_idx]["text"]
 
-# ================= STREAMING =================
-def stream_text(text, container):
-    words=text.split()
-    output=""
-    for w in words:
-        output+=w+" "
-        container.markdown(f'''
-        <div class="chat-row bot-row">
-            <div class="bot-msg">{output}</div>
-        </div>
-        ''', unsafe_allow_html=True)
-        time.sleep(0.02)
+    system_prompt = """
+You are an AI HR Policy Assistant.
+
+STRICT RULES:
+- Answer ONLY using the provided company policy
+- If information missing, say: Not mentioned in company policy.
+- Do NOT assume anything
+- Keep answer clear and professional
+"""
+
+    user_prompt = f"""
+Company Policy:
+{context}
+
+User Question:
+{question}
+"""
+
+    stream = client.chat.completions.create(
+        model="llama3-8b-8192",
+        temperature=0,
+        messages=[
+            {"role":"system","content":system_prompt},
+            {"role":"user","content":user_prompt}
+        ],
+        stream=True
+    )
+
+    return stream, None
 
 # ================= DISPLAY CHAT =================
 for msg in st.session_state.messages:
@@ -179,12 +197,32 @@ if st.session_state.thinking:
     ''', unsafe_allow_html=True)
 
     time.sleep(0.6)
-    answer = get_policy_answer(last_user)
+
+    stream, fallback = generate_ai_answer(last_user)
     thinking_box.empty()
 
     response_box = st.empty()
-    stream_text(answer, response_box)
+    full_answer = ""
 
-    st.session_state.messages.append({"role":"assistant","content":answer})
+    if fallback:
+        full_answer = fallback
+        response_box.markdown(f'''
+        <div class="chat-row bot-row">
+            <div class="bot-msg">{full_answer}</div>
+        </div>
+        ''', unsafe_allow_html=True)
+
+    else:
+        for chunk in stream:
+            if chunk.choices[0].delta.content:
+                token = chunk.choices[0].delta.content
+                full_answer += token
+                response_box.markdown(f'''
+                <div class="chat-row bot-row">
+                    <div class="bot-msg">{full_answer}</div>
+                </div>
+                ''', unsafe_allow_html=True)
+
+    st.session_state.messages.append({"role":"assistant","content":full_answer})
     st.session_state.thinking = False
     st.rerun()
