@@ -19,7 +19,6 @@ st.markdown("""
 header {visibility:hidden;}
 footer {visibility:hidden;}
 
-/* TITLE */
 .title-box{
     text-align:center;
     padding:35px 20px;
@@ -40,7 +39,6 @@ footer {visibility:hidden;}
 }
 .subtitle{ color:#9ca3af; font-size:18px; }
 
-/* CHAT */
 .chat-row{display:flex;width:100%;}
 .user-row{justify-content:flex-end;}
 .bot-row{justify-content:flex-start;}
@@ -56,7 +54,6 @@ footer {visibility:hidden;}
     box-shadow:0 2px 8px rgba(0,0,0,0.08);
 }
 
-/* INPUT */
 .stChatInputContainer textarea{
     background:#ffffff !important;color:#111827 !important;
     caret-color:#111827 !important;border-radius:14px !important;
@@ -115,10 +112,8 @@ policy_embeddings = embed_policies()
 def is_greeting(q):
     return q.lower().strip() in ["hi","hello","hey","good morning","good afternoon","good evening"]
 
-# ================= GROQ RAG ANSWER =================
 def normalize_question(q: str):
     q = q.lower()
-
     replacements = {
         "gone": "leave",
         "away": "leave",
@@ -133,23 +128,21 @@ def normalize_question(q: str):
         "travel": "vacation",
         "holiday": "vacation",
     }
-
     for k, v in replacements.items():
         if k in q:
             q += " " + v
-
     return q
 
+# ================= RAG ANSWER =================
 def generate_ai_answer(question):
 
     if is_greeting(question):
         return None, "Hello 👋 I can help you understand company HR policies like leave, benefits and approvals."
 
-       normalized_q = normalize_question(question)
-       q_embedding = model.encode([normalized_q])
+    normalized_q = normalize_question(question)
+    q_embedding = model.encode([normalized_q])
 
     scores = cosine_similarity(q_embedding, policy_embeddings)[0]
-
     top_indices = np.argsort(scores)[-2:][::-1]
     top_scores = scores[top_indices]
 
@@ -173,7 +166,6 @@ STRICT RULES:
 - If the answer is not explicitly written in the policy, reply exactly:
   "Not mentioned in company policy."
 - Keep responses short and factual
-
 """
 
     user_prompt = f"""
@@ -182,8 +174,6 @@ Company Policy Context:
 
 Employee Question:
 {question}
-
-Provide a helpful HR explanation to the employee.
 """
 
     stream = client.chat.completions.create(
@@ -200,18 +190,13 @@ Provide a helpful HR explanation to the employee.
 
 # ================= DISPLAY CHAT =================
 for msg in st.session_state.messages:
-    if msg["role"]=="user":
-        st.markdown(f'''
-        <div class="chat-row user-row">
-            <div class="user-msg">{msg["content"]}</div>
-        </div>
-        ''', unsafe_allow_html=True)
-    else:
-        st.markdown(f'''
-        <div class="chat-row bot-row">
-            <div class="bot-msg">{msg["content"]}</div>
-        </div>
-        ''', unsafe_allow_html=True)
+    role_class = "user-row" if msg["role"]=="user" else "bot-row"
+    bubble_class = "user-msg" if msg["role"]=="user" else "bot-msg"
+    st.markdown(f'''
+    <div class="chat-row {role_class}">
+        <div class="{bubble_class}">{msg["content"]}</div>
+    </div>
+    ''', unsafe_allow_html=True)
 
 # ================= INPUT =================
 prompt = st.chat_input("Message Policy Assistant...")
@@ -248,14 +233,11 @@ if st.session_state.thinking:
             <div class="bot-msg">{full_answer}</div>
         </div>
         ''', unsafe_allow_html=True)
-
     else:
         for chunk in stream:
             delta = chunk.choices[0].delta
             if hasattr(delta, "content") and delta.content:
-                token = delta.content
-                full_answer += token
-
+                full_answer += delta.content
                 response_box.markdown(f'''
                 <div class="chat-row bot-row">
                     <div class="bot-msg">{full_answer}</div>
@@ -265,6 +247,3 @@ if st.session_state.thinking:
     st.session_state.messages.append({"role":"assistant","content":full_answer})
     st.session_state.thinking = False
     st.rerun()
-
-
-
