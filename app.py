@@ -115,31 +115,38 @@ def normalize(q):
 
 # ================= RETRIEVAL =================
 def retrieve_context(question):
-    q=normalize(question)
-    q_embed=model.encode([q])
-    scores=cosine_similarity(q_embed,policy_embeddings)[0]
-    best=np.max(scores)
+    q = normalize(question)
+    q_embed = model.encode([q])
+    scores = cosine_similarity(q_embed, policy_embeddings)[0]
 
-    if best<0.28:
+    relevant = []
+    for i, score in enumerate(scores):
+        if score >= 0.38:   # strict grounding threshold
+            relevant.append(POLICIES[i])
+
+    if not relevant:
         return None
 
-    indices=np.argsort(scores)[-2:]
-    context="\n".join([POLICIES[i] for i in indices if scores[i]>0.30])
-    return context
+    return "\n".join(relevant)
 
 # ================= LLM ANSWER =================
 def ask_llm(context,question):
 
     system="""
+
 You are an HR policy assistant.
 
-Rewrite the policy to answer the user's question.
-Do NOT add advice.
-Do NOT add assumptions.
-Do NOT explain beyond the policy.
-Only restate the policy in simple words.
-Keep it short.
+Answer ONLY using the provided policy text.
+If the policy does not explicitly contain the answer, reply exactly:
+
+Not mentioned in company policy.
+
+Do not guess.
+Do not assume.
+Do not create new rules.
 """
+
+
 
     user=f"""
 Policy:
@@ -207,3 +214,4 @@ if st.session_state.thinking:
     st.session_state.messages.append({"role":"assistant","content":full})
     st.session_state.thinking=False
     st.rerun()
+
