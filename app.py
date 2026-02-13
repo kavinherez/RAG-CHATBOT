@@ -11,8 +11,9 @@ st.markdown("""
 
 /* App background */
 .stApp {
-    background-color: #0b0f14;
+    background: #f3f4f6;  
 }
+
 
 /* Hide Streamlit header */
 header {visibility: hidden;}
@@ -46,25 +47,39 @@ footer {visibility: hidden;}
 }
 
 /* Chat bubbles */
+.chat-row{
+    display:flex;
+    width:100%;
+}
+
+.user-row{
+    justify-content:flex-end;
+}
+
+.bot-row{
+    justify-content:flex-start;
+}
+
 .user-msg{
     background:#1f2937;
     color:white;
-    padding:14px 18px;
+    padding:12px 16px;
     border-radius:16px;
-    max-width:60%;
-    margin-left:auto;
-    margin-top:10px;
+    width:fit-content;
+    max-width:55%;
+    margin:8px 0;
 }
 
 .bot-msg{
     background:#ffffff;
     color:#111827;
-    padding:14px 18px;
+    padding:12px 16px;
     border-radius:16px;
-    max-width:60%;
-    margin-right:auto;
-    margin-top:10px;
+    width:fit-content;
+    max-width:55%;
+    margin:8px 0;
 }
+
 
 /* Input box */
 .stChatInputContainer textarea{
@@ -128,10 +143,19 @@ def stream_text(text):
 
 # ================= DISPLAY CHAT =================
 for msg in st.session_state.messages:
-    if msg["role"] == "user":
-        st.markdown(f'<div class="user-msg">{msg["content"]}</div>', unsafe_allow_html=True)
-    else:
-        st.markdown(f'<div class="bot-msg">{msg["content"]}</div>', unsafe_allow_html=True)
+   if msg["role"] == "user":
+    st.markdown(f'''
+    <div class="chat-row user-row">
+        <div class="user-msg">{msg["content"]}</div>
+    </div>
+    ''', unsafe_allow_html=True)
+else:
+    st.markdown(f'''
+    <div class="chat-row bot-row">
+        <div class="bot-msg">{msg["content"]}</div>
+    </div>
+    ''', unsafe_allow_html=True)
+
 
 
 # ================= INPUT =================
@@ -156,3 +180,4 @@ if prompt:
         response_box.markdown(f'<div class="bot-msg">{full}</div>', unsafe_allow_html=True)
 
     st.session_state.messages.append({"role":"assistant","content":full})
+
