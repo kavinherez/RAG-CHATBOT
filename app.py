@@ -150,7 +150,7 @@ User Question:
 """
 
     stream = client.chat.completions.create(
-        model="llama3-8b-8192",
+       model="llama-3.1-8b-instant",
         temperature=0,
         messages=[
             {"role":"system","content":system_prompt},
@@ -226,3 +226,4 @@ if st.session_state.thinking:
     st.session_state.messages.append({"role":"assistant","content":full_answer})
     st.session_state.thinking = False
     st.rerun()
+
