@@ -27,6 +27,31 @@ html, body, [class*="css"]  {
     margin: auto;
     padding-top: 40px;
 }
+/* INPUT TEXT COLOR */
+.stChatInput textarea {
+    color: white !important;              /* user typing text */
+    caret-color: white !important;        /* blinking cursor */
+    font-weight: 500;
+}
+
+/* PLACEHOLDER TEXT */
+.stChatInput textarea::placeholder {
+    color: rgba(255,255,255,0.65) !important;
+    opacity: 1 !important;
+}
+
+/* When user focuses (clicks) input */
+.stChatInput textarea:focus {
+    color: white !important;
+    caret-color: white !important;
+}
+
+/* Remove ugly red outline */
+.stChatInput textarea:focus {
+    outline: none !important;
+    box-shadow: none !important;
+}
+
 /* Placeholder text (Type your query here...) */
 .stChatInput textarea::placeholder {
     color: #9fe3d3 !important;   /* soft aqua highlight */
@@ -180,5 +205,6 @@ if query:
     st.rerun()
 
 st.markdown('</div>', unsafe_allow_html=True)
+
 
 
