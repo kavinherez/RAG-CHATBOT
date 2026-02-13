@@ -147,7 +147,8 @@ def generate_ai_answer(question):
     top_scores = scores[top_indices]
 
     if top_scores[0] < 0.28:
-        return None, "I can only answer company policy related questions."
+       return None, "Not mentioned in company policy."
+
 
     context_blocks = []
     for idx in top_indices:
@@ -158,16 +159,16 @@ def generate_ai_answer(question):
 
     system_prompt = """
 
+
 You are an AI HR Policy Assistant.
 
-RULES:
-- Answer ONLY using the provided company policy context
-- You may explain how the policy applies to the employee's situation
-- Do NOT invent new policies or assumptions
-- If the policy truly does not contain relevant information, say:
-  "Not mentioned in company policy."
-- Keep responses clear and professional
+Answer using ONLY the provided company policy context.
+Explain the policy in relation to the employee's situation.
+Do NOT invent rules or recommendations beyond the policy.
+Keep the answer short and clear.
 """
+
+
 
 
 
@@ -250,4 +251,5 @@ if st.session_state.thinking:
     st.session_state.messages.append({"role":"assistant","content":full_answer})
     st.session_state.thinking = False
     st.rerun()
+
 
